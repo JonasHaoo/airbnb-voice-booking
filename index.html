@@ -1,0 +1,2286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Airbnb for Work — Voice Booking</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #FFFFFF;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 0;
+      font-size: 15px;
+      font-weight: 400;
+      color: #222222;
+    }
+    #app {
+      width: 100%;
+      max-width: 390px;
+      min-height: 100vh;
+      background: #FFFFFF;
+      border-radius: 0;
+      box-shadow: none;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Typography */
+    h1, h2, .voice-heading, .results-header, .confirm-header, .success-heading, .dashboard-title { font-weight: 600; color: #222222; font-size: 22px; }
+    .top-bar-title, .confirm-name, .trip-card-name, .listing-name { font-weight: 600; color: #222222; }
+    .voice-sub, .results-sub, .listing-meta, .confirm-dates-row, .confirm-duration, .success-sub, .dashboard-subtitle, .event-detail, .sheet-meta { color: #717171; font-size: 13px; }
+    a, .nav-link { color: #FF5A5F; text-decoration: none; }
+    a:hover, .nav-link:hover { text-decoration: underline; }
+
+    /* Progress bar — bottom, 4 pill segments + Step X of 4 */
+    .progress-bar-wrap {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 12px 16px;
+      background: #FFFFFF;
+      border-top: 1px solid #EBEBEB;
+    }
+    .progress-bar {
+      height: 4px;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .progress-bar .step {
+      width: 60px;
+      height: 4px;
+      border-radius: 2px;
+      background: #E0E0E0;
+      transition: background 0.3s ease;
+    }
+    .progress-bar .step.active { background: #FF5A5F; }
+    .progress-step-label {
+      font-size: 13px;
+      color: #717171;
+      margin-left: 12px;
+    }
+
+    /* Screens */
+    .screens { position: relative; min-height: 500px; overflow: hidden; flex: 1; display: flex; flex-direction: column; }
+    .screen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      min-height: 500px;
+      padding: 0;
+      padding-bottom: 24px;
+      background: #FFFFFF;
+      transform: translateX(100%);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    .screen.active { position: relative; transform: translateX(0); opacity: 1; pointer-events: auto; }
+    .screen.slide-out-left { transform: translateX(-100%); }
+    .screen.slide-in-right { transform: translateX(100%); }
+    .screen.slide-out-right { transform: translateX(100%); }
+    .screen.slide-in-from-left { transform: translateX(-100%); }
+
+    .top-bar {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      background: #FFFFFF;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 10;
+    }
+    #screen1 .top-bar { border-bottom: none; }
+    .top-bar.border-bottom { border-bottom: 1px solid #EBEBEB; }
+    .nav-chevron {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #222222;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+      width: 40px;
+      min-height: 44px;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      z-index: 2;
+      position: relative;
+    }
+    .top-bar-title { font-size: 16px; font-weight: 600; color: #222222; margin-left: auto; text-align: right; flex-shrink: 0; }
+    .top-bar-right .nav-link { font-size: 15px; color: #FF5A5F; background: none; border: none; cursor: pointer; }
+    .top-bar-spacer { width: 40px; }
+
+    /* Nav — Airbnb logo + name on left */
+    .nav-brand { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .nav-brand-name { font-size: 18px; font-weight: 600; color: #FF5A5F; letter-spacing: -0.5px; }
+    .nav-left { display: flex; align-items: center; gap: 4px; }
+    .for-work-pill {
+      background: rgba(255,90,95,0.12);
+      color: #FF5A5F;
+      border: none;
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .info-banner, .mic-permission-banner { display: none; }
+    .mic-file-warning { display: none; }
+    .mic-permission-banner.show { display: block; font-size: 13px; color: #717171; padding: 8px 0; }
+    .mic-file-warning.show { display: block; font-size: 13px; background: #FFF8E1; color: #856404; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; }
+
+    .screen-content { padding: 16px; }
+    #screen1 .screen-content {
+      display: flex;
+      flex-direction: column;
+      min-height: calc(100vh - 120px);
+      min-height: calc(500px - 80px);
+    }
+    #screen1 .chips-wrap { flex: 1; display: flex; flex-direction: column; justify-content: center; margin-top: 24px; }
+    .voice-heading { font-size: 22px; font-weight: 700; color: #222222; text-align: center; margin-top: 0; margin-bottom: 12px; }
+    .voice-sub { font-size: 15px; color: #717171; text-align: center; margin-bottom: 24px; }
+    .mic-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 24px; }
+    .mic-btn {
+      width: 96px; height: 96px;
+      border-radius: 50%;
+      background: #FF5A5F;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      transition: transform 0.2s;
+      animation: mic-breathe 3s ease-in-out infinite;
+    }
+    @keyframes mic-breathe {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,90,95,0); }
+      50% { box-shadow: 0 0 0 12px rgba(255,90,95,0.15); }
+    }
+    .mic-btn.listening {
+      animation: mic-active 1.2s ease-out infinite;
+    }
+    @keyframes mic-active {
+      0% { box-shadow: 0 0 0 0 rgba(255,90,95,0.4); transform: scale(1); }
+      50% { box-shadow: 0 0 0 20px rgba(255,90,95,0); transform: scale(1.04); }
+      100% { box-shadow: 0 0 0 0 rgba(255,90,95,0); transform: scale(1); }
+    }
+    .mic-btn:hover { transform: scale(1.02); }
+    .mic-btn svg { width: 36px; height: 36px; }
+    .mic-status { font-size: 13px; color: #717171; margin-top: 8px; }
+    .transcript-box {
+      width: 100%;
+      min-height: 56px;
+      background: #FFFFFF;
+      border: 1px solid #EBEBEB;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 15px;
+      color: #222222;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .transcript-box.visible { display: block; }
+    .btn-search {
+      width: 100%; height: 48px;
+      background: #FF5A5F;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      display: none;
+      margin-bottom: 20px;
+    }
+    .btn-search.visible { display: block; }
+    .btn-clear { display: none; font-size: 14px; color: #717171; background: none; border: none; cursor: pointer; text-decoration: underline; margin-top: 8px; }
+    .btn-clear.show { display: inline-block; }
+    .quick-label { font-size: 13px; color: #717171; margin-bottom: 8px; }
+    .chips {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-bottom: 8px;
+    }
+    .chip {
+      width: 100%;
+      height: 56px;
+      padding: 0 16px;
+      border: 1px solid #DDDDDD;
+      border-radius: 12px;
+      background: #FFFFFF;
+      font-size: 15px;
+      color: #222222;
+      cursor: pointer;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .chip:hover { border-color: #222222; }
+    .chip .chip-chevron { color: #FF5A5F; font-size: 18px; }
+    .policy-footer { font-size: 13px; color: #717171; text-align: center; margin-top: auto; padding: 0 24px; padding-top: 24px; }
+    .listening-hint { text-align: center; font-size: 13px; color: #717171; margin-top: 16px; display: none; }
+    .listening-hint.show { display: block; }
+    .voice-unsupported { font-size: 13px; color: #717171; margin-top: 12px; display: none; }
+    .voice-unsupported.show { display: block; }
+    .parsed-feedback, .city-not-in-demo { font-size: 13px; margin-bottom: 12px; display: none; padding: 10px 12px; border-radius: 8px; }
+    .parsed-feedback.show { display: block; background: #F7F7F7; color: #222222; }
+    .city-not-in-demo.show { display: block; background: #FFF8E1; color: #856404; }
+    .chips.highlight-presets .chip { border-color: #FF5A5F; }
+    .skeleton-loader { display: none; margin-top: 12px; }
+    .skeleton-loader.show { display: block; }
+    .skeleton-card {
+      height: 100px;
+      background: linear-gradient(90deg, #EBEBEB 25%, #F7F7F7 50%, #EBEBEB 75%);
+      background-size: 200% 100%;
+      animation: skeleton-pulse 1.2s ease-in-out infinite;
+      border-radius: 12px;
+      margin-bottom: 10px;
+    }
+    @keyframes skeleton-pulse { 0%, 100% { background-position: 200% 0; } 50% { background-position: -200% 0; } }
+
+    /* Screen 2 — Results */
+    .results-header { font-size: 22px; font-weight: 600; color: #222222; margin-bottom: 4px; }
+    .results-sub { font-size: 13px; color: #717171; margin-bottom: 12px; }
+    .hear-link { display: inline-block; margin-bottom: 16px; padding: 6px 12px; background: #FF5A5F; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; line-height: 1.3; }
+    .hear-link:hover { background: #E84A4F; color: white; text-decoration: none; }
+    .listing-cards { display: flex; flex-direction: column; gap: 0; }
+    .listing-card {
+      background: #FFFFFF;
+      padding: 16px 0;
+      border-bottom: 1px solid #EBEBEB;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .listing-card:last-child { border-bottom: none; }
+    .listing-card-thumb {
+      width: 64px; height: 64px;
+      background: #EBEBEB;
+      border-radius: 8px;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .listing-card-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .listing-card-body { flex: 1; min-width: 0; position: relative; }
+    .listing-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; }
+    .listing-card-number {
+      width: 20px; height: 20px; border-radius: 50%; background: #FF5A5F; color: white; font-size: 12px; font-weight: 600;
+      display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .listing-name-wrap { flex: 1; min-width: 0; display: block; }
+    .listing-name { font-weight: 600; font-size: 15px; color: #222222; display: block; text-align: left; line-height: 1.3; }
+    .listing-rating { font-size: 13px; color: #717171; flex-shrink: 0; white-space: nowrap; }
+    .listing-meta-line { font-size: 13px; color: #717171; margin-bottom: 4px; }
+    .listing-distance { font-size: 13px; color: #717171; margin-bottom: 8px; }
+    .amenity-pill {
+      font-size: 12px;
+      color: #717171;
+      background: #F7F7F7;
+      padding: 4px 10px;
+      border-radius: 20px;
+      display: inline-block;
+      margin-right: 6px;
+      margin-bottom: 8px;
+    }
+    .listing-card-bottom { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #EBEBEB; }
+    .listing-price { font-size: 15px; font-weight: 600; color: #222222; }
+    .policy-badge { font-size: 12px; padding: 4px 10px; border-radius: 20px; }
+    .policy-badge.within { border: 1px solid #008A05; color: #008A05; background: transparent; }
+    .policy-badge.above { border: 1px solid #C13515; color: #C13515; background: transparent; }
+    .btn-book { width: 100%; height: 48px; margin-top: 12px; background: #FF5A5F; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; }
+    .btn-book:hover { background: #E84A4F; }
+
+    /* Screen 3 — Confirm */
+    .confirm-header { font-size: 22px; font-weight: 600; margin-bottom: 16px; }
+    .confirm-card {
+      background: #FFFFFF;
+      border: 1px solid #EBEBEB;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .confirm-name { font-size: 18px; font-weight: 600; color: #222222; margin-bottom: 8px; }
+    .confirm-dates-row, .confirm-duration { font-size: 13px; color: #717171; margin-bottom: 4px; }
+    .divider { height: 1px; background: #EBEBEB; margin: 12px 0; }
+    .price-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px; color: #222222; margin-bottom: 6px; gap: 12px; }
+    .price-row .price-label { flex: 1; }
+    .price-row .price-amount { flex-shrink: 0; text-align: right; }
+    .price-row.total { font-weight: 600; }
+    .payment-row { font-size: 15px; color: #222222; }
+    .policy-pill-green { font-size: 13px; color: #008A05; border: 1px solid #008A05; padding: 4px 10px; border-radius: 20px; display: inline-block; background: transparent; }
+    .btn-confirm { width: 100%; height: 56px; background: #222222; color: white; border: none; border-radius: 14px; font-size: 16px; font-weight: 600; cursor: pointer; margin-bottom: 10px; }
+    .btn-back { width: 100%; height: 56px; background: #FFFFFF; color: #222222; border: 1.5px solid #DDDDDD; border-radius: 14px; font-size: 16px; font-weight: 600; cursor: pointer; }
+    .btn-back:hover { background: #F7F7F7; }
+
+    /* Screen 4 — Success */
+    .success-wrap { text-align: center; padding: 20px 16px; }
+    .checkmark-wrap { width: 80px; height: 80px; margin: 0 auto 20px; }
+    .checkmark-wrap svg { width: 100%; height: 100%; }
+    .checkmark-circle { fill: none; stroke: #008A05; stroke-width: 3; stroke-dasharray: 226; stroke-dashoffset: 226; }
+    .checkmark-path { fill: none; stroke: #008A05; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 50; stroke-dashoffset: 50; }
+    .checkmark-wrap.animate .checkmark-circle { animation: draw-circle 0.5s ease-out forwards; }
+    .checkmark-wrap.animate .checkmark-path { animation: draw-check 0.4s ease-out 0.4s forwards; }
+    .checkmark-wrap.animate { animation: check-bounce 0.4s ease 0.9s forwards; }
+    @keyframes draw-circle { from { stroke-dashoffset: 226; } to { stroke-dashoffset: 0; } }
+    @keyframes draw-check { from { stroke-dashoffset: 50; } to { stroke-dashoffset: 0; } }
+    @keyframes check-bounce {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.08); }
+      70% { transform: scale(0.96); }
+      100% { transform: scale(1); }
+    }
+    .success-heading { font-size: 22px; font-weight: 600; color: #222222; margin-bottom: 8px; }
+    .success-sub { font-size: 13px; color: #717171; margin-bottom: 16px; }
+    .booking-pill { background: #FFFFFF; border: 1px solid #EBEBEB; color: #222222; padding: 12px 16px; border-radius: 12px; font-size: 13px; margin-bottom: 20px; display: inline-block; }
+    .action-buttons { display: flex; flex-direction: column; gap: 10px; }
+    .btn-action { width: 100%; height: 56px; border-radius: 14px; font-size: 16px; font-weight: 600; cursor: pointer; }
+    .btn-action.primary { background: #222222; color: white; border: none; }
+    .btn-action.secondary { background: #FFFFFF; color: #222222; border: 1.5px solid #DDDDDD; }
+    .btn-action.tertiary { background: none; border: none; color: #FF5A5F; font-weight: 500; text-decoration: none; }
+    .btn-action.tertiary:hover { text-decoration: underline; }
+
+    /* Modals & sheets */
+    .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+    .overlay.show { opacity: 1; pointer-events: auto; }
+    .modal { background: #FFFFFF; border-radius: 12px; padding: 20px; max-width: 340px; width: 90%; border: 1px solid #EBEBEB; }
+    .modal-title { font-size: 20px; font-weight: 600; color: #222222; margin-bottom: 14px; }
+    .event-card { background: #F7F7F7; border-radius: 8px; padding: 14px; margin-bottom: 14px; border: none; }
+    .event-title { font-weight: 600; font-size: 16px; color: #222222; margin-bottom: 6px; }
+    .event-detail { font-size: 13px; color: #717171; margin-bottom: 4px; }
+    .event-status { font-size: 12px; color: #008A05; border: 1px solid #008A05; padding: 4px 10px; border-radius: 20px; display: inline-block; margin-top: 8px; background: transparent; }
+    .modal-close { width: 100%; height: 56px; background: #FFFFFF; border: 1.5px solid #222222; border-radius: 14px; font-size: 16px; font-weight: 600; cursor: pointer; color: #222222; margin-top: 8px; }
+    .modal-close-primary { background: #222222; color: white; border: none; }
+    .modal-expense { max-width: 340px; width: 90%; }
+    .modal-expense .sheet-heading { font-size: 18px; font-weight: 600; color: #222222; margin-bottom: 16px; }
+    .modal-expense .event-status { margin-top: 12px; display: block; }
+    .modal-expense .modal-close-primary { margin-top: 16px; }
+    .sheet-close { width: 100%; height: 48px; background: #FFFFFF; border: 1.5px solid #222222; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; color: #222222; }
+    .bottom-sheet { position: fixed; bottom: 0; left: 0; right: 0; background: #FFFFFF; border-radius: 12px 12px 0 0; padding: 24px; max-height: 80vh; overflow-y: auto; z-index: 100; transform: translateY(100%); transition: transform 0.25s ease; border: 1px solid #EBEBEB; border-bottom: none; }
+    .bottom-sheet.show { transform: translateY(0); }
+    .sheet-backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 99; opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
+    .sheet-backdrop.show { opacity: 1; pointer-events: auto; }
+    .sheet-heading { font-size: 18px; font-weight: 600; color: #222222; margin-bottom: 16px; }
+    .sheet-table { width: 100%; font-size: 15px; margin-bottom: 12px; }
+    .sheet-table td { padding: 6px 0; }
+    .sheet-table td:last-child { text-align: right; font-weight: 600; color: #222222; }
+    .sheet-meta { font-size: 13px; color: #717171; margin-bottom: 8px; }
+    .expensify-logo { width: 48px; height: 48px; background: #FF6B35; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 1.25rem; margin-bottom: 8px; }
+    .expensify-label { font-size: 15px; font-weight: 600; color: #222222; margin-bottom: 12px; }
+    .modify-sheet-option { display: block; width: 100%; padding: 14px; text-align: left; border: none; background: #F7F7F7; border-radius: 8px; margin-bottom: 8px; font-size: 15px; cursor: pointer; color: #222222; border: 1px solid #EBEBEB; }
+    .modify-sheet-option:hover { background: #EBEBEB; }
+    .confirm-dialog-actions { display: flex; gap: 10px; margin-top: 16px; }
+    .confirm-dialog-actions .btn-danger { background: #C13515; color: white; border: none; height: 48px; border-radius: 8px; font-weight: 600; cursor: pointer; flex: 1; font-size: 16px; }
+    .confirm-dialog-actions .btn-secondary { background: #FFFFFF; color: #222222; border: 1.5px solid #222222; height: 48px; border-radius: 8px; cursor: pointer; flex: 1; font-size: 16px; }
+
+    /* Dashboard Screen 5 */
+    .dashboard-header { display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 16px; border-bottom: 1px solid #EBEBEB; position: relative; z-index: 10; }
+    .dashboard-title { font-size: 18px; font-weight: 600; color: #222222; }
+    .dashboard-subtitle { font-size: 13px; color: #717171; margin-bottom: 16px; padding: 0 16px; }
+    .stats-row { display: flex; gap: 16px; padding: 16px; border-bottom: 1px solid #EBEBEB; }
+    .stat-tile { flex: 1; text-align: center; }
+    .stat-value { display: block; font-size: 18px; font-weight: 600; color: #222222; }
+    .stat-label { font-size: 13px; color: #717171; }
+    .stats-explainer { font-size: 12px; color: #717171; text-align: center; padding: 0 16px 8px 16px; }
+    .dashboard-tabs { display: flex; border-bottom: 1px solid #EBEBEB; padding: 0 16px; }
+    .dashboard-tab { flex: 1; padding: 12px 8px; border: none; background: none; font-size: 14px; color: #717171; cursor: pointer; border-bottom: 2px solid transparent; }
+    .dashboard-tab.active { color: #222222; font-weight: 600; border-bottom-color: #FF5A5F; }
+    .tab-content { display: none; padding: 16px; }
+    .tab-content.active { display: block; }
+    .trip-card {
+      display: flex;
+      gap: 14px;
+      padding: 16px 0;
+      border-bottom: 1px solid #EBEBEB;
+      align-items: flex-start;
+    }
+    .trip-card:last-child { border-bottom: none; }
+    .trip-card-photo {
+      width: 48px; height: 48px;
+      background: #EBEBEB;
+      border-radius: 8px;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .trip-card-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .trip-card-body { flex: 1; min-width: 0; }
+    .trip-card-name { font-weight: 600; font-size: 15px; color: #222222; margin-bottom: 2px; }
+    .trip-card-meta { font-size: 13px; color: #717171; margin-bottom: 6px; }
+    .trip-card-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .trip-card-price { font-size: 15px; font-weight: 600; color: #222222; }
+    .trip-card-status { font-size: 12px; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
+    .trip-card-status.confirmed { border: 1px solid #008A05; color: #008A05; background: transparent; }
+    .trip-card-status.pending { border: 1px solid #F57C00; color: #F57C00; background: transparent; }
+    .trip-card-status.expensed { border: 1px solid #008A05; color: #008A05; background: transparent; }
+    .trip-card-status.pending_approval { border: 1px solid #F57C00; color: #F57C00; background: transparent; }
+    .trip-card-actions { font-size: 13px; margin-top: 10px; }
+    .trip-card-actions .trip-action-link {
+      background: none; border: none; color: #FF5A5F; font-size: 13px; cursor: pointer; padding: 0; text-decoration: none;
+    }
+    .trip-card-actions .trip-action-link:hover { text-decoration: underline; }
+    .trip-card-actions .sep { color: #717171; margin: 0 4px; pointer-events: none; }
+    .trip-card-reminder { margin-top: 10px; }
+    .btn-send-reminder { padding: 8px 14px; background: #FF5A5F; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: #222222; color: white; padding: 12px 20px; border-radius: 8px; font-size: 15px; z-index: 200; opacity: 0; transition: transform 0.25s ease, opacity 0.25s ease; }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    .voice-indicator, .processing-indicator { display: none; }
+    .processing-indicator.show { display: block; text-align: center; font-size: 13px; color: #717171; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="screens">
+      <!-- Screen 1 — Voice Search -->
+      <div class="screen active" id="screen1" data-screen="1">
+        <div class="top-bar">
+          <div class="nav-brand">
+            <span class="nav-brand-name">Airbnb</span>
+          </div>
+          <span class="for-work-pill">For Work</span>
+        </div>
+        <div class="screen-content">
+        <p class="mic-file-warning" id="micFileWarning">Opened as file? Voice won’t work. Run in terminal: <code>npx serve .</code> then open <strong>http://localhost:3000</strong></p>
+        <h1 class="voice-heading">Just Say It</h1>
+        <p class="voice-sub">Say where you're going, when, and your budget</p>
+        <div class="mic-wrap">
+          <button type="button" class="mic-btn" id="micBtn" aria-label="Tap to speak">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </button>
+          <span class="mic-status" id="micStatus">Tap to speak</span>
+        </div>
+        <div class="transcript-box" id="transcriptBox"></div>
+        <div class="parsed-feedback" id="parsedFeedback"></div>
+        <div class="skeleton-loader" id="skeletonLoader">
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+        </div>
+        <button type="button" class="btn-search" id="btnSearch">Search</button>
+        <button type="button" class="btn-clear" id="btnClear">Clear</button>
+        <p class="listening-hint" id="listeningHint">Listening for your command...</p>
+        <p class="voice-unsupported" id="voiceUnsupported">Voice input not supported. Use the preset chips below.</p>
+        <div class="chips-wrap">
+        <p class="quick-label">Quick Search</p>
+        <p class="city-not-in-demo" id="cityNotInDemo">City not in demo database. Try one of the presets above or say any major US city (top 50 supported).</p>
+        <div class="chips" id="chipsContainer">
+          <button type="button" class="chip" data-preset="austin">Austin · Mon–Thu · &lt;$200<span class="chip-chevron">›</span></button>
+          <button type="button" class="chip" data-preset="boston">Boston · Tue–Fri · &lt;$180<span class="chip-chevron">›</span></button>
+          <button type="button" class="chip" data-preset="chicago">Chicago · Wed–Sat · &lt;$220<span class="chip-chevron">›</span></button>
+        </div>
+        <p class="policy-footer" id="policyLine">Current policy: max $200/night · WiFi required · Workspace required · Self check-in preferred</p>
+        </div>
+        </div>
+      </div>
+      <div class="screen" id="screen2" data-screen="2">
+        <div class="top-bar border-bottom">
+          <div class="nav-left">
+            <button type="button" class="nav-chevron" id="backTo1" aria-label="Back to search" data-go-back="1" onclick="window.__navGoBack&amp;&amp;window.__navGoBack(1);return false">&#8249;</button>
+            <div class="nav-brand">
+              <span class="nav-brand-name">Airbnb</span>
+            </div>
+          </div>
+          <span class="top-bar-title">Results</span>
+          <span class="top-bar-spacer"></span>
+        </div>
+        <div class="screen-content">
+        <h2 class="results-header" id="resultsHeader">Stays in Austin</h2>
+        <p class="results-sub" id="resultsSub">Filtered for business travel · Under $200/night</p>
+        <button type="button" class="hear-link" id="hearOptions">Read options aloud</button>
+        <div class="listing-cards" id="listingCards"></div>
+        <p class="listening-hint" id="listeningHint2">Listening for your command...</p>
+        </div>
+      </div>
+
+      <!-- Screen 3 — Confirm -->
+      <div class="screen" id="screen3" data-screen="3">
+        <div class="top-bar border-bottom">
+          <div class="nav-left">
+            <button type="button" class="nav-chevron" id="backTo2" aria-label="Back to results" data-go-back="2" onclick="window.__navGoBack&amp;&amp;window.__navGoBack(2);return false">&#8249;</button>
+            <div class="nav-brand">
+              <span class="nav-brand-name">Airbnb</span>
+            </div>
+          </div>
+          <span class="top-bar-title">Confirm</span>
+          <span class="top-bar-spacer"></span>
+        </div>
+        <div class="screen-content">
+        <h2 class="confirm-header">Confirm Booking</h2>
+        <div class="confirm-card" id="confirmCard"></div>
+        <button type="button" class="btn-confirm" id="btnConfirm">Confirm Booking</button>
+        <button type="button" class="btn-back" id="btnBack">Choose a different stay</button>
+        </div>
+      </div>
+
+      <!-- Screen 4 — Success -->
+      <div class="screen" id="screen4" data-screen="4">
+        <div class="top-bar border-bottom">
+          <div class="nav-brand">
+            <span class="nav-brand-name">Airbnb</span>
+          </div>
+          <span class="top-bar-spacer"></span>
+          <span class="top-bar-title">Booked</span>
+          <span class="top-bar-spacer"></span>
+        </div>
+        <div class="success-wrap">
+          <div class="checkmark-wrap" id="checkmarkWrap">
+            <svg viewBox="0 0 80 80">
+              <circle class="checkmark-circle" cx="40" cy="40" r="36"/>
+              <path class="checkmark-path" d="M22 40 L34 52 L58 28"/>
+            </svg>
+          </div>
+          <h2 class="success-heading">Booking confirmed</h2>
+          <p class="success-sub">Confirmation sent to your work email</p>
+          <div class="booking-pill" id="bookingPill"></div>
+          <div class="action-buttons">
+            <button type="button" class="btn-action primary" id="addToCalendar">Add to calendar</button>
+            <button type="button" class="btn-action secondary" id="pushExpense">Submit expense</button>
+            <button type="button" class="btn-action tertiary" id="viewDashboard">View my trips</button>
+            <button type="button" class="btn-action tertiary" id="bookAnother">Search again</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Screen 5 — Trip Dashboard -->
+      <div class="screen" id="screen5" data-screen="5">
+        <div class="dashboard-header">
+          <div class="nav-left">
+            <button type="button" class="nav-chevron" id="dashboardBack" aria-label="Back" data-go-back="previous" onclick="window.__navGoBack&amp;&amp;window.__navGoBack(window.__previousScreen||1);return false">&#8249;</button>
+            <div class="nav-brand">
+              <span class="nav-brand-name">Airbnb</span>
+            </div>
+          </div>
+          <h2 class="dashboard-title">My Trips</h2>
+          <span class="top-bar-spacer"></span>
+        </div>
+        <p class="dashboard-subtitle">Acme Corp · Travel Dashboard</p>
+        <div class="stats-row">
+          <div class="stat-tile"><span class="stat-value" id="dashboardTripsCount">3</span><span class="stat-label">Trips this month</span></div>
+          <div class="stat-tile"><span class="stat-value" id="dashboardTotalSpend">$1,340</span><span class="stat-label">Total spend</span></div>
+          <div class="stat-tile"><span class="stat-value" id="dashboardPolicyPct">100%</span><span class="stat-label">Policy compliant</span></div>
+        </div>
+        <p class="stats-explainer">Spend includes upcoming, completed, and pending trips</p>
+        <div class="dashboard-tabs">
+          <button type="button" class="dashboard-tab active" data-tab="upcoming" onclick="window.__showDashboardTab&amp;&amp;window.__showDashboardTab('upcoming');return false">Upcoming</button>
+          <button type="button" class="dashboard-tab" data-tab="past" onclick="window.__showDashboardTab&amp;&amp;window.__showDashboardTab('past');return false">Past</button>
+          <button type="button" class="dashboard-tab" data-tab="pending" onclick="window.__showDashboardTab&amp;&amp;window.__showDashboardTab('pending');return false">Pending Approval</button>
+        </div>
+        <div class="tab-content active" id="tabUpcoming"></div>
+        <div class="tab-content" id="tabPast"></div>
+        <div class="tab-content" id="tabPending"></div>
+    </div>
+  </div>
+
+  <div class="progress-bar-wrap">
+    <div class="progress-bar">
+      <div class="step" data-step="1"></div>
+      <div class="step" data-step="2"></div>
+      <div class="step" data-step="3"></div>
+      <div class="step" data-step="4"></div>
+    </div>
+    <span class="progress-step-label" id="progressStepLabel">Step 1 of 4</span>
+  </div>
+
+  <!-- Modal: Calendar -->
+  <div class="overlay" id="calendarOverlay">
+    <div class="modal">
+      <h3 class="modal-title">Trip added to calendar</h3>
+      <div class="event-card" id="eventCard"></div>
+      <button type="button" class="modal-close" id="calendarClose">Close</button>
+    </div>
+  </div>
+
+  <!-- Modal: Expense (same size as calendar) -->
+  <div class="overlay" id="expenseOverlay">
+    <div class="modal modal-expense">
+      <div class="expensify-logo">E</div>
+      <p class="expensify-label">Expensify</p>
+      <p class="sheet-heading">Expense Report Created</p>
+      <table class="sheet-table" id="expenseTable"></table>
+      <p class="sheet-meta" id="expenseCategory"></p>
+      <p class="sheet-meta" id="expenseReportId"></p>
+      <span class="event-status">Submitted for manager approval</span>
+      <button type="button" class="modal-close modal-close-primary" id="expenseClose">Close</button>
+    </div>
+  </div>
+
+  <!-- Bottom sheet: Modify -->
+  <div class="sheet-backdrop" id="modifyBackdrop"></div>
+  <div class="bottom-sheet" id="modifySheet">
+    <p class="sheet-heading">Modify trip</p>
+    <button type="button" class="modify-sheet-option" id="modifyChangeDates">Change dates</button>
+    <button type="button" class="modify-sheet-option" id="modifyCancelBooking">Cancel booking</button>
+    <button type="button" class="sheet-close" id="modifyClose">Close</button>
+  </div>
+
+  <!-- Cancel confirmation dialog -->
+  <div class="overlay" id="cancelConfirmOverlay">
+    <div class="modal">
+      <h3 class="modal-title">Cancel this trip?</h3>
+      <p class="event-detail">Cancellation fee may apply.</p>
+      <div class="confirm-dialog-actions">
+        <button type="button" class="btn-danger" id="cancelConfirmYes">Yes, Cancel</button>
+        <button type="button" class="btn-secondary" id="cancelConfirmKeep">Keep Booking</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Action confirmation (calendar / expense) -->
+  <div class="overlay" id="actionConfirmOverlay">
+    <div class="modal">
+      <h3 class="modal-title" id="actionConfirmTitle">Confirm?</h3>
+      <div class="confirm-dialog-actions">
+        <button type="button" class="btn-danger" id="actionConfirmYes">Confirm</button>
+        <button type="button" class="btn-secondary" id="actionConfirmNo">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+  <div class="voice-indicator" id="voiceIndicator"></div>
+  <div class="processing-indicator" id="processingIndicator"></div>
+
+  </div><!-- #app -->
+
+  <script>
+(function() {
+  'use strict';
+
+  // ─── State ─────────────────────────────────────────────────────────────
+  var currentScreen = 1;
+  var previousScreen = 1;
+  var selectedListing = null;
+  var parsedCity = 'Austin';
+  var parsedNear = 'city center';
+  var parsedPrice = 200;
+  var parsedDates = { checkIn: null, checkOut: null };
+  var transcript = '';
+  var micPermissionBannerHidden = false;
+  var modifySheetTrip = null;
+  var cancelConfirmTrip = null;
+  var pendingActionConfirm = null;
+  var awaitingCityConfirm = false;
+  var suggestedCity = null;
+  var showAllAbovePolicy = false;
+  var transcriptCityHeard = '';
+  var commandRecognition = null;
+  var commandTimeoutId = null;
+  var transcriptSilenceTimeoutId = null;
+  var AUTO_SEARCH_SILENCE_MS = 1500;
+
+  function updatePolicyLine() {
+    var elLine = document.getElementById('policyLine');
+    if (elLine) elLine.innerHTML = 'Current policy: max $' + (parsedPrice || 200) + '/night · WiFi required · Workspace required · Self check-in preferred';
+  }
+
+  function cancelAllVoiceAndTTS() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (window.activeRecognition) {
+      try { window.activeRecognition.stop(); } catch (e) {}
+      window.activeRecognition = null;
+    }
+    if (commandRecognition) {
+      try { commandRecognition.stop(); } catch (e) {}
+      commandRecognition = null;
+    }
+    if (commandTimeoutId) {
+      clearTimeout(commandTimeoutId);
+      commandTimeoutId = null;
+    }
+    if (transcriptSilenceTimeoutId) {
+      clearTimeout(transcriptSilenceTimeoutId);
+      transcriptSilenceTimeoutId = null;
+    }
+    if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+    if (el.processingIndicator) el.processingIndicator.classList.remove('show');
+  }
+
+  function checkVoiceBackCommand(t) {
+    var lower = (t || '').toLowerCase().trim();
+    if (/\b(go\s*back|back|cancel|stop|never\s*mind|start\s*over|restart)\b/.test(lower)) return previousScreen;
+    if (/\b(home|new\s*search|new\s*trip|search\s*again)\b/.test(lower)) return 1;
+    return 0;
+  }
+
+  var CITIES = ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'Jacksonville', 'Fort Worth', 'San Jose', 'Austin', 'Charlotte', 'Columbus', 'Indianapolis', 'San Francisco', 'Seattle', 'Denver', 'Oklahoma City', 'Nashville', 'El Paso', 'Boston', 'Detroit', 'Portland', 'Las Vegas', 'Memphis', 'Louisville', 'Baltimore', 'Milwaukee', 'Albuquerque', 'Tucson', 'Fresno', 'Sacramento', 'Kansas City', 'Atlanta', 'Colorado Springs', 'Raleigh', 'Omaha', 'Miami', 'Long Beach', 'Virginia Beach', 'Oakland', 'Minneapolis', 'Tulsa', 'Tampa', 'Arlington', 'New Orleans', 'Wichita', 'Cleveland', 'Bakersfield', 'Aurora'];
+  var CITY_ALIASES = {
+    'Austin': ['austin', 'austin texas'],
+    'Boston': ['boston', 'boston massachusetts'],
+    'Chicago': ['chicago', 'chicago illinois', 'chi-town'],
+    'New York': ['new york', 'nyc', 'new york city', 'manhattan', 'brooklyn'],
+    'Seattle': ['seattle', 'seattle washington'],
+    'San Francisco': ['san francisco', 'sf', 'san fran', 'the city'],
+    'Los Angeles': ['los angeles', 'la', 'l.a.', 'los angeles california'],
+    'Miami': ['miami', 'miami florida', 'miami beach'],
+    'Houston': ['houston', 'houston texas'],
+    'Phoenix': ['phoenix', 'phoenix arizona'],
+    'Philadelphia': ['philadelphia', 'philly', 'philadelphia pennsylvania'],
+    'San Antonio': ['san antonio', 'san antonio texas'],
+    'San Diego': ['san diego', 'san diego california'],
+    'Dallas': ['dallas', 'dallas texas'],
+    'Jacksonville': ['jacksonville', 'jacksonville florida'],
+    'Fort Worth': ['fort worth', 'fort worth texas'],
+    'San Jose': ['san jose', 'san jose california', 'sanjose'],
+    'Charlotte': ['charlotte', 'charlotte north carolina'],
+    'Columbus': ['columbus', 'columbus ohio'],
+    'Indianapolis': ['indianapolis', 'indy', 'indianapolis indiana'],
+    'Denver': ['denver', 'denver colorado'],
+    'Oklahoma City': ['oklahoma city', 'okc', 'oklahoma city oklahoma'],
+    'Nashville': ['nashville', 'nashville tennessee'],
+    'El Paso': ['el paso', 'el paso texas'],
+    'Detroit': ['detroit', 'detroit michigan'],
+    'Portland': ['portland', 'portland oregon'],
+    'Las Vegas': ['las vegas', 'vegas', 'las vegas nevada'],
+    'Memphis': ['memphis', 'memphis tennessee'],
+    'Louisville': ['louisville', 'louisville kentucky'],
+    'Baltimore': ['baltimore', 'baltimore maryland'],
+    'Milwaukee': ['milwaukee', 'milwaukee wisconsin'],
+    'Albuquerque': ['albuquerque', 'albuquerque new mexico'],
+    'Tucson': ['tucson', 'tucson arizona'],
+    'Fresno': ['fresno', 'fresno california'],
+    'Sacramento': ['sacramento', 'sacramento california'],
+    'Kansas City': ['kansas city', 'kansas city missouri', 'kc'],
+    'Atlanta': ['atlanta', 'atlanta georgia'],
+    'Colorado Springs': ['colorado springs', 'colorado springs colorado'],
+    'Raleigh': ['raleigh', 'raleigh north carolina'],
+    'Omaha': ['omaha', 'omaha nebraska'],
+    'Long Beach': ['long beach', 'long beach california'],
+    'Virginia Beach': ['virginia beach', 'virginia beach virginia'],
+    'Oakland': ['oakland', 'oakland california'],
+    'Minneapolis': ['minneapolis', 'minneapolis minnesota', 'twin cities'],
+    'Tulsa': ['tulsa', 'tulsa oklahoma'],
+    'Tampa': ['tampa', 'tampa florida'],
+    'Arlington': ['arlington', 'arlington texas', 'arlington virginia'],
+    'New Orleans': ['new orleans', 'nola', 'new orleans louisiana'],
+    'Wichita': ['wichita', 'wichita kansas'],
+    'Cleveland': ['cleveland', 'cleveland ohio'],
+    'Bakersfield': ['bakersfield', 'bakersfield california'],
+    'Aurora': ['aurora', 'aurora colorado', 'aurora illinois']
+  };
+  var DAY_NAMES = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+
+  var LISTINGS = {
+    Austin: [
+      { name: 'The Austin Suite', price: 185, distance: '0.3mi', superhost: true, amenities: 'WiFi ✓ Workspace ✓', rating: 4.92, anchor: 'convention center', image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=128&h=128&fit=crop' },
+      { name: 'Downtown Loft', price: 160, distance: '0.5mi', superhost: true, amenities: 'WiFi ✓ Standing desk ✓', rating: 4.88, anchor: 'convention center', image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=128&h=128&fit=crop' },
+      { name: 'South Congress Studio', price: 145, distance: '1.2mi', superhost: false, amenities: 'WiFi ✓ Work desk ✓', rating: 4.81, anchor: 'convention center', image: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=128&h=128&fit=crop' }
+    ],
+    Boston: [
+      { name: 'Back Bay Apartment', price: 175, distance: '0.2mi', superhost: true, amenities: 'WiFi ✓ Workspace ✓', rating: 4.95, anchor: 'Copley Square', image: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=128&h=128&fit=crop' },
+      { name: 'Beacon Hill Studio', price: 155, distance: '0.6mi', superhost: false, amenities: 'WiFi ✓ Desk ✓', rating: 4.87, anchor: 'Copley Square', image: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=128&h=128&fit=crop&q=80' },
+      { name: 'South End Loft', price: 140, distance: '1.0mi', superhost: false, amenities: 'WiFi ✓ Work area ✓', rating: 4.79, anchor: 'Copley Square', image: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=128&h=128&fit=crop' }
+    ],
+    Chicago: [
+      { name: 'River North Suite', price: 210, distance: '0.4mi', superhost: true, amenities: 'WiFi ✓ Office desk ✓', rating: 4.93, anchor: 'Merchandise Mart', image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=128&h=128&fit=crop&q=80' },
+      { name: 'Loop Studio', price: 195, distance: '0.1mi', superhost: true, amenities: 'WiFi ✓ Workspace ✓', rating: 4.90, anchor: 'Merchandise Mart', image: 'https://images.unsplash.com/photo-1505693314120-0d443867891c?w=128&h=128&fit=crop' },
+      { name: 'West Loop Flat', price: 180, distance: '0.8mi', superhost: false, amenities: 'WiFi ✓ Desk ✓', rating: 4.83, anchor: 'Merchandise Mart', image: 'https://images.unsplash.com/photo-1486718448742-163732cd1544?w=128&h=128&fit=crop' }
+    ],
+    'New York': [
+      { name: 'Midtown Studio', price: 220, distance: '0.2mi', superhost: true, amenities: 'WiFi ✓ Workspace ✓', rating: 4.91, anchor: 'Midtown', image: 'https://images.unsplash.com/photo-1505873242700-f289a29e54e5?w=128&h=128&fit=crop' },
+      { name: 'Chelsea Apartment', price: 195, distance: '0.8mi', superhost: true, amenities: 'WiFi ✓ Desk ✓', rating: 4.86, anchor: 'Midtown', image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=128&h=128&fit=crop' },
+      { name: 'Brooklyn Loft', price: 170, distance: '2.1mi', superhost: false, amenities: 'WiFi ✓ Work area ✓', rating: 4.80, anchor: 'Midtown', image: 'https://images.unsplash.com/photo-1560185127-6a1896c335e8?w=128&h=128&fit=crop' }
+    ],
+    Seattle: [
+      { name: 'Capitol Hill Suite', price: 175, distance: '0.5mi', superhost: true, amenities: 'WiFi ✓ Workspace ✓', rating: 4.94, anchor: 'downtown Seattle', image: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=128&h=128&fit=crop' },
+      { name: 'South Lake Union Studio', price: 155, distance: '0.3mi', superhost: false, amenities: 'WiFi ✓ Standing desk ✓', rating: 4.88, anchor: 'downtown Seattle', image: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=128&h=128&fit=crop' },
+      { name: 'Belltown Flat', price: 140, distance: '0.7mi', superhost: false, amenities: 'WiFi ✓ Desk ✓', rating: 4.82, anchor: 'downtown Seattle', image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=128&h=128&fit=crop' }
+    ],
+    'San Francisco': [
+      { name: 'Financial District Loft', price: 230, distance: '0.1mi', superhost: true, amenities: 'WiFi ✓ Workspace ✓', rating: 4.93, anchor: 'Financial District', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=128&h=128&fit=crop' },
+      { name: 'SoMa Studio', price: 200, distance: '0.4mi', superhost: true, amenities: 'WiFi ✓ Office desk ✓', rating: 4.89, anchor: 'Financial District', image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=128&h=128&fit=crop' },
+      { name: 'Mission Apartment', price: 180, distance: '1.3mi', superhost: false, amenities: 'WiFi ✓ Work desk ✓', rating: 4.84, anchor: 'Financial District', image: 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?w=128&h=128&fit=crop' }
+    ],
+    'Los Angeles': [
+      { name: 'Downtown LA Suite', price: 190, distance: '0.3mi', superhost: true, amenities: 'WiFi ✓ Workspace ✓', rating: 4.90, anchor: 'downtown LA', image: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=128&h=128&fit=crop' },
+      { name: 'Silver Lake Studio', price: 165, distance: '2.1mi', superhost: false, amenities: 'WiFi ✓ Desk ✓', rating: 4.85, anchor: 'downtown LA', image: 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=128&h=128&fit=crop' },
+      { name: 'Venice Beach Flat', price: 155, distance: '5.2mi', superhost: false, amenities: 'WiFi ✓ Work area ✓', rating: 4.78, anchor: 'downtown LA', image: 'https://images.unsplash.com/photo-1600573472592-401b489a3cdc?w=128&h=128&fit=crop' }
+    ],
+    Miami: [
+      { name: 'Brickell Tower Studio', price: 180, distance: '0.2mi', superhost: true, amenities: 'WiFi ✓ Workspace ✓', rating: 4.92, anchor: 'Brickell', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=128&h=128&fit=crop' },
+      { name: 'Wynwood Loft', price: 155, distance: '1.4mi', superhost: false, amenities: 'WiFi ✓ Desk ✓', rating: 4.86, anchor: 'Brickell', image: 'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=128&h=128&fit=crop' },
+      { name: 'Coconut Grove Apartment', price: 145, distance: '3.0mi', superhost: false, amenities: 'WiFi ✓ Work area ✓', rating: 4.80, anchor: 'Brickell', image: 'https://images.unsplash.com/photo-1600047509358-9dc75507daeb?w=128&h=128&fit=crop' }
+    ]
+  };
+
+  function defaultListingsForCity(city) {
+    var anchor = 'city center';
+    var imgs = ['https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=128&h=128&fit=crop', 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=128&h=128&fit=crop', 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=128&h=128&fit=crop'];
+    return [
+      { name: city + ' Downtown Suite', price: 175, distance: '0.3mi', superhost: true, amenities: 'WiFi ✓ Workspace ✓', rating: 4.88, anchor: anchor, image: imgs[0] },
+      { name: city + ' Center Studio', price: 155, distance: '0.6mi', superhost: false, amenities: 'WiFi ✓ Desk ✓', rating: 4.82, anchor: anchor, image: imgs[1] },
+      { name: city + ' Loft', price: 145, distance: '1.0mi', superhost: false, amenities: 'WiFi ✓ Work area ✓', rating: 4.76, anchor: anchor, image: imgs[2] }
+    ];
+  }
+  function getListings(city) {
+    if (!city) return [];
+    return LISTINGS[city] || defaultListingsForCity(city);
+  }
+
+  var PRESETS = {
+    austin: 'Find me a place in Austin near the convention center, check-in Monday, check-out Thursday, under $200 a night',
+    boston: 'Find me a place in Boston near Copley Square, check-in Tuesday, check-out Friday, under $180 a night',
+    chicago: 'Find me a place in Chicago near Merchandise Mart, check-in Wednesday, check-out Saturday, under $220 a night'
+  };
+
+  // ─── DOM refs ──────────────────────────────────────────────────────────
+  var el = {
+    screen1: document.getElementById('screen1'),
+    screen2: document.getElementById('screen2'),
+    screen3: document.getElementById('screen3'),
+    screen4: document.getElementById('screen4'),
+    screen5: document.getElementById('screen5'),
+    transcriptBox: document.getElementById('transcriptBox'),
+    parsedFeedback: document.getElementById('parsedFeedback'),
+    skeletonLoader: document.getElementById('skeletonLoader'),
+    btnSearch: document.getElementById('btnSearch'),
+    btnClear: document.getElementById('btnClear'),
+    micBtn: document.getElementById('micBtn'),
+    micStatus: document.getElementById('micStatus'),
+    voiceUnsupported: document.getElementById('voiceUnsupported'),
+    listeningHint: document.getElementById('listeningHint'),
+    micPermissionBanner: document.getElementById('micPermissionBanner'),
+    micFileWarning: document.getElementById('micFileWarning'),
+    cityNotInDemo: document.getElementById('cityNotInDemo'),
+    chipsContainer: document.getElementById('chipsContainer'),
+    resultsHeader: document.getElementById('resultsHeader'),
+    resultsSub: document.getElementById('resultsSub'),
+    listingCards: document.getElementById('listingCards'),
+    hearOptions: document.getElementById('hearOptions'),
+    listeningHint2: document.getElementById('listeningHint2'),
+    confirmCard: document.getElementById('confirmCard'),
+    btnConfirm: document.getElementById('btnConfirm'),
+    btnBack: document.getElementById('btnBack'),
+    checkmarkWrap: document.getElementById('checkmarkWrap'),
+    bookingPill: document.getElementById('bookingPill'),
+    addToCalendar: document.getElementById('addToCalendar'),
+    pushExpense: document.getElementById('pushExpense'),
+    bookAnother: document.getElementById('bookAnother'),
+    viewDashboard: document.getElementById('viewDashboard'),
+    calendarOverlay: document.getElementById('calendarOverlay'),
+    eventCard: document.getElementById('eventCard'),
+    calendarClose: document.getElementById('calendarClose'),
+    expenseTable: document.getElementById('expenseTable'),
+    expenseCategory: document.getElementById('expenseCategory'),
+    expenseReportId: document.getElementById('expenseReportId'),
+    expenseOverlay: document.getElementById('expenseOverlay'),
+    expenseClose: document.getElementById('expenseClose'),
+    modifyBackdrop: document.getElementById('modifyBackdrop'),
+    modifySheet: document.getElementById('modifySheet'),
+    modifyChangeDates: document.getElementById('modifyChangeDates'),
+    modifyCancelBooking: document.getElementById('modifyCancelBooking'),
+    modifyClose: document.getElementById('modifyClose'),
+    cancelConfirmOverlay: document.getElementById('cancelConfirmOverlay'),
+    cancelConfirmYes: document.getElementById('cancelConfirmYes'),
+    cancelConfirmKeep: document.getElementById('cancelConfirmKeep'),
+    actionConfirmOverlay: document.getElementById('actionConfirmOverlay'),
+    actionConfirmTitle: document.getElementById('actionConfirmTitle'),
+    actionConfirmYes: document.getElementById('actionConfirmYes'),
+    actionConfirmNo: document.getElementById('actionConfirmNo'),
+    toast: document.getElementById('toast'),
+    voiceIndicator: document.getElementById('voiceIndicator'),
+    processingIndicator: document.getElementById('processingIndicator'),
+    dashboardBack: document.getElementById('dashboardBack'),
+    backTo1: document.getElementById('backTo1'),
+    backTo2: document.getElementById('backTo2'),
+    tabUpcoming: document.getElementById('tabUpcoming'),
+    tabPast: document.getElementById('tabPast'),
+    tabPending: document.getElementById('tabPending'),
+    progressStepLabel: document.getElementById('progressStepLabel')
+  };
+
+  // ─── Helpers ───────────────────────────────────────────────────────────
+  function goBack(targetScreen) {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (window.activeRecognition) {
+      try { window.activeRecognition.stop(); } catch (e) {}
+      window.activeRecognition = null;
+    }
+    if (commandRecognition) {
+      try { commandRecognition.stop(); } catch (e) {}
+      commandRecognition = null;
+    }
+    if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+    if (transcriptSilenceTimeoutId) { clearTimeout(transcriptSilenceTimeoutId); transcriptSilenceTimeoutId = null; }
+    document.querySelectorAll('.modal, .bottom-sheet, .overlay.show, .sheet-backdrop.show').forEach(function(el) {
+      if (el && el.classList) {
+        el.classList.remove('show');
+        el.style.display = 'none';
+      } else if (el && el.style) el.style.display = 'none';
+    });
+    document.querySelectorAll('[class*="backdrop"]').forEach(function(el) {
+      if (el && el.classList && el.classList.contains('show')) el.classList.remove('show');
+    });
+    if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+    if (el.processingIndicator) el.processingIndicator.classList.remove('show');
+    if (targetScreen === 1) {
+      transcript = '';
+      selectedListing = null;
+      parsedCity = 'Austin';
+      parsedNear = 'city center';
+      parsedPrice = 200;
+      parsedDates = { checkIn: null, checkOut: null };
+      if (el.transcriptBox) { el.transcriptBox.textContent = ''; el.transcriptBox.classList.remove('visible'); }
+      if (el.btnSearch) el.btnSearch.classList.remove('visible');
+      if (el.parsedFeedback) el.parsedFeedback.classList.remove('show');
+      if (el.voiceUnsupported) el.voiceUnsupported.classList.remove('show');
+      if (el.micBtn) el.micBtn.classList.remove('listening');
+      if (el.micStatus) el.micStatus.textContent = 'Tap to speak';
+      if (el.listeningHint) el.listeningHint.classList.remove('show');
+      if (el.cityNotInDemo) el.cityNotInDemo.classList.remove('show');
+      if (el.chipsContainer) el.chipsContainer.classList.remove('highlight-presets');
+      if (el.skeletonLoader) el.skeletonLoader.classList.remove('show');
+      if (el.btnClear) el.btnClear.classList.remove('show');
+    }
+    goToScreen(targetScreen);
+    if (targetScreen === 1) {
+      speakTTS('Search cancelled. Tap the mic or choose a preset to search again.');
+    }
+    if (targetScreen === 2) {
+      setTimeout(function() { if (currentScreen === 2) startScreen2VoiceFlow(); }, 400);
+    }
+  }
+
+  function goToScreen(n, reverse) {
+    previousScreen = currentScreen;
+    window.__previousScreen = previousScreen;
+    var screens = [el.screen1, el.screen2, el.screen3, el.screen4, el.screen5];
+    var current = screens[currentScreen - 1];
+    var target = screens[n - 1];
+    if (reverse && current && target && current !== target) {
+      current.classList.add('slide-out-right');
+      target.classList.add('active', 'slide-in-from-left');
+      target.style.transform = 'translateX(-100%)';
+      current.style.transform = 'translateX(100%)';
+      requestAnimationFrame(function() {
+        target.style.transform = 'translateX(0)';
+      });
+      setTimeout(function() {
+        screens.forEach(function(s, i) {
+          s.classList.remove('active', 'slide-out-left', 'slide-in-right', 'slide-out-right', 'slide-in-from-left');
+          s.style.transform = '';
+          if (i + 1 === n) s.classList.add('active');
+        });
+        currentScreen = n;
+        document.querySelectorAll('.progress-bar .step').forEach(function(step, i) {
+          step.classList.toggle('active', i < n);
+        });
+        if (el.progressStepLabel) el.progressStepLabel.textContent = 'Step ' + Math.min(n, 4) + ' of 4';
+        if (n === 5) {
+          renderDashboardTabs();
+          setTimeout(function() { if (currentScreen === 5) startDashboardVoiceListener(); }, 400);
+        }
+      }, 300);
+      return;
+    }
+    currentScreen = n;
+    screens.forEach(function(s, i) {
+      s.classList.remove('active', 'slide-out-left', 'slide-in-right', 'slide-out-right', 'slide-in-from-left');
+      s.style.transform = '';
+      if (i + 1 === n) s.classList.add('active');
+    });
+    document.querySelectorAll('.progress-bar .step').forEach(function(step, i) {
+      step.classList.toggle('active', i < n);
+    });
+    if (el.progressStepLabel) el.progressStepLabel.textContent = 'Step ' + Math.min(n, 4) + ' of 4';
+    if (n === 5) {
+      renderDashboardTabs();
+      setTimeout(function() { if (currentScreen === 5) startDashboardVoiceListener(); }, 400);
+    }
+  }
+
+  function formatDate(d) {
+    var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return days[d.getDay()] + ', ' + months[d.getMonth()] + ' ' + d.getDate();
+  }
+
+  function getBookingNightsAndTotal() {
+    if (!parsedDates.checkIn || !parsedDates.checkOut) return { nights: 0, total: 0, checkIn: null, checkOut: null };
+    var checkIn = parsedDates.checkIn;
+    var checkOut = parsedDates.checkOut;
+    if (checkOut.getTime() < checkIn.getTime()) {
+      var tmp = checkIn;
+      checkIn = checkOut;
+      checkOut = tmp;
+    }
+    var nights = Math.max(0, Math.round((checkOut - checkIn) / (24 * 60 * 60 * 1000)));
+    var total = (selectedListing ? selectedListing.price * nights : 0) + 45;
+    return { nights: nights, total: total, checkIn: checkIn, checkOut: checkOut };
+  }
+
+  function nextDayNamed(dayName) {
+    var target = DAY_NAMES.indexOf(dayName.toLowerCase());
+    if (target === -1) return null;
+    var today = new Date();
+    var d = new Date(today);
+    var cur = d.getDay();
+    var diff = (target + 7 - cur) % 7;
+    if (diff === 0) diff = 7;
+    d.setDate(d.getDate() + diff);
+    return d;
+  }
+
+  function parseTranscript(text) {
+    var textLower = text.toLowerCase().trim();
+    var city = null;
+    var closestMatch = null;
+    var longestMatch = 0;
+    for (var c in CITY_ALIASES) {
+      var aliases = [c.toLowerCase()].concat(CITY_ALIASES[c]);
+      for (var a = 0; a < aliases.length; a++) {
+        var alias = aliases[a];
+        if (textLower.indexOf(alias) !== -1) {
+          if (alias.length > longestMatch) {
+            longestMatch = alias.length;
+            city = c;
+          }
+        }
+      }
+    }
+    if (!city && textLower.length >= 2) {
+      for (var c2 in CITY_ALIASES) {
+        var aliases2 = [c2.toLowerCase()].concat(CITY_ALIASES[c2]);
+        for (var a2 = 0; a2 < aliases2.length; a2++) {
+          if (aliases2[a2].indexOf(textLower) !== -1 || textLower.indexOf(aliases2[a2]) !== -1) {
+            closestMatch = c2;
+            break;
+          }
+        }
+        if (closestMatch) break;
+      }
+    }
+    var price = 200;
+    var priceMatch = text.match(/\$(\d+)|under\s*\$\s*(\d+)|below\s*\$\s*(\d+)|under\s+(\d+)/i);
+    if (priceMatch) {
+      var p = parseInt(priceMatch[1] || priceMatch[2] || priceMatch[3] || priceMatch[4], 10);
+      if (p > 0) price = p;
+    }
+    var near = 'city center';
+    var nearMatch = text.match(/near\s+([^.?!,]+?)(?:\s+check|\s*$|\.|,)/i) || text.match(/near\s+(.+?)(?:\s+check|\s*$)/i);
+    if (nearMatch && nearMatch[1]) near = nearMatch[1].trim();
+    var checkIn = null, checkOut = null;
+    var days = text.match(/(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)/gi);
+    if (days && days.length >= 2) {
+      checkIn = nextDayNamed(days[0]);
+      checkOut = nextDayNamed(days[1]);
+    } else if (days && days.length === 1) {
+      checkIn = nextDayNamed(days[0]);
+      if (checkIn) {
+        checkOut = new Date(checkIn);
+        checkOut.setDate(checkOut.getDate() + 3);
+      }
+    }
+    if (!checkIn) {
+      var t = new Date();
+      checkIn = new Date(t);
+      checkIn.setDate(checkIn.getDate() + 1);
+      checkOut = new Date(checkIn);
+      checkOut.setDate(checkOut.getDate() + 3);
+    }
+    if (!checkOut && checkIn) {
+      checkOut = new Date(checkIn);
+      checkOut.setDate(checkOut.getDate() + 3);
+    }
+    if (checkIn && checkOut && checkOut.getTime() < checkIn.getTime()) {
+      var tmp = checkIn;
+      checkIn = checkOut;
+      checkOut = tmp;
+    }
+    return { city: city, closestMatch: closestMatch, price: price, near: near, checkIn: checkIn, checkOut: checkOut };
+  }
+
+  function speakTTS(text, onEnd) {
+    window.speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.3;
+    u.lang = 'en-US';
+    if (onEnd && typeof onEnd === 'function') {
+      u.onend = function() { setTimeout(onEnd, 800); };
+    }
+    window.speechSynthesis.speak(u);
+  }
+
+  function runSearch() {
+    if (!transcript.trim()) return;
+    if (awaitingCityConfirm && suggestedCity && (transcript.toLowerCase().trim().indexOf('yes') !== -1 || transcript.toLowerCase().trim() === 'yeah')) {
+      parsedCity = suggestedCity;
+      var p = parseTranscript(transcript);
+      parsedPrice = p.price || 200;
+      parsedNear = p.near || 'city center';
+      parsedDates.checkIn = p.checkIn;
+      parsedDates.checkOut = p.checkOut;
+      awaitingCityConfirm = false;
+      suggestedCity = null;
+      updatePolicyLine();
+      el.parsedFeedback.textContent = 'Got it — searching ' + parsedCity + '...';
+      el.parsedFeedback.classList.add('show');
+      el.skeletonLoader.classList.add('show');
+      el.btnSearch.classList.remove('visible');
+      setTimeout(function() {
+        el.parsedFeedback.classList.remove('show');
+        el.skeletonLoader.classList.remove('show');
+        renderResults();
+        goToScreen(2);
+        setTimeout(function() { if (currentScreen === 2) startScreen2VoiceFlow(); }, 400);
+      }, 1500);
+      return;
+    }
+    var p = parseTranscript(transcript);
+    if (!p.city && p.closestMatch) {
+      awaitingCityConfirm = true;
+      suggestedCity = p.closestMatch;
+      el.parsedFeedback.textContent = 'I didn\'t catch the city. Did you mean ' + p.closestMatch + '? Say yes or try again.';
+      el.parsedFeedback.classList.add('show');
+      el.transcriptBox.classList.add('visible');
+      el.btnSearch.classList.add('visible');
+      speakTTS('I didn\'t catch the city. Did you mean ' + p.closestMatch + '? Say yes or try again.');
+      return;
+    }
+    if (!p.city && !p.closestMatch) {
+      transcriptCityHeard = transcript.trim().split(/\s+(?:near|check|,|\.|for|in)\s+/i)[0] || transcript.trim().slice(0, 40);
+      if (transcriptCityHeard.length > 35) transcriptCityHeard = transcriptCityHeard.slice(0, 32) + '...';
+      speakTTS('Airbnb for Work is available in the top 50 US cities in this demo. I heard ' + transcriptCityHeard + '. Try saying a city name like Houston, Phoenix, Atlanta, or Denver.');
+      goToScreen(1, true);
+      el.cityNotInDemo.classList.add('show');
+      if (el.chipsContainer) el.chipsContainer.classList.add('highlight-presets');
+      return;
+    }
+    parsedCity = p.city;
+    parsedPrice = p.price;
+    parsedNear = p.near;
+    parsedDates.checkIn = p.checkIn;
+    parsedDates.checkOut = p.checkOut;
+    awaitingCityConfirm = false;
+    suggestedCity = null;
+    updatePolicyLine();
+    var list = getListings(parsedCity);
+    var anyUnderPolicy = list.some(function(item) { return item.price <= parsedPrice; });
+    showAllAbovePolicy = !anyUnderPolicy;
+    if (showAllAbovePolicy && list.length > 0) {
+      if (el.processingIndicator) el.processingIndicator.classList.add('show');
+      speakTTS('No policy-compliant listings found in ' + parsedCity + ' under $' + parsedPrice + '. Showing closest options.', function() {
+        setTimeout(function() {
+          if (el.processingIndicator) el.processingIndicator.classList.remove('show');
+          el.skeletonLoader.classList.add('show');
+          setTimeout(function() {
+            el.skeletonLoader.classList.remove('show');
+            renderResults();
+            goToScreen(2);
+            setTimeout(function() { if (currentScreen === 2) startScreen2VoiceFlow(); }, 400);
+          }, 1500);
+        }, 2000);
+      });
+      return;
+    }
+    if (el.processingIndicator) el.processingIndicator.classList.add('show');
+    var msg = 'Got it. I found ' + parsedCity + ' from ' + formatDate(parsedDates.checkIn) + ' to ' + formatDate(parsedDates.checkOut) + ' under $' + parsedPrice + ' a night. Searching now.';
+    speakTTS(msg, function() {
+      setTimeout(function() {
+        el.parsedFeedback.classList.add('show');
+        el.parsedFeedback.textContent = 'Searching...';
+        el.skeletonLoader.classList.add('show');
+        if (el.processingIndicator) el.processingIndicator.classList.remove('show');
+        setTimeout(function() {
+          el.parsedFeedback.classList.remove('show');
+          el.skeletonLoader.classList.remove('show');
+          renderResults();
+          goToScreen(2);
+          setTimeout(function() { if (currentScreen === 2) startScreen2VoiceFlow(); }, 400);
+        }, 1500);
+      }, 2000);
+    });
+  }
+
+  function renderResults() {
+    var list = getListings(parsedCity) || getListings('Austin');
+    var anchor = (list[0] && list[0].anchor) ? list[0].anchor : 'city center';
+    el.resultsHeader.textContent = 'Stays in ' + parsedCity;
+    el.resultsSub.textContent = (showAllAbovePolicy ? 'No listings under $' + parsedPrice + '/night · Showing closest options' : 'Filtered for business travel · Under $' + parsedPrice + '/night');
+    el.listingCards.innerHTML = '';
+    list.forEach(function(item, idx) {
+      var withinPolicy = !showAllAbovePolicy && item.price <= parsedPrice;
+      var amenityLabels = (item.amenities || '').split(/\s*✓\s*/).filter(function(s) { return s.trim(); }).map(function(s) { return s.trim(); });
+      if (amenityLabels.length === 0) amenityLabels = ['WiFi'];
+      var card = document.createElement('div');
+      card.className = 'listing-card';
+      card.innerHTML =
+        '<div class="listing-card-body">' +
+        '<div class="listing-card-top">' +
+          '<span class="listing-card-number">' + (idx + 1) + '</span>' +
+          '<span class="listing-name-wrap"><span class="listing-name">' + item.name + '</span></span>' +
+          '<span class="listing-rating">' + (item.rating || '') + (item.superhost ? ' · Superhost' : '') + '</span>' +
+        '</div>' +
+        '<div class="listing-distance">' + item.distance + ' from ' + anchor + '</div>' +
+        '<div class="listing-amenities">' + amenityLabels.map(function(a) { return '<span class="amenity-pill">' + a + '</span>'; }).join('') + '</div>' +
+        '<div class="listing-card-bottom">' +
+          '<span class="listing-price">$' + item.price + ' / night</span>' +
+          '<span class="policy-badge ' + (withinPolicy ? 'within' : 'above') + '">' + (withinPolicy ? 'Within policy' : 'Above policy') + '</span>' +
+        '</div>' +
+        '<button type="button" class="btn-book" data-idx="' + idx + '">Book</button>' +
+        '</div>' +
+        '<div class="listing-card-thumb">' + (item.image ? '<img src="' + item.image + '" alt="" referrerpolicy="no-referrer">' : '') + '</div>';
+      el.listingCards.appendChild(card);
+      card.querySelector('.btn-book').addEventListener('click', function() {
+        cancelAllVoiceAndTTS();
+        selectedListing = list[idx];
+        renderConfirm();
+        goToScreen(3);
+        setTimeout(function() { if (currentScreen === 3) startScreen3VoiceFlow(); }, 400);
+      });
+    });
+    showAllAbovePolicy = false;
+  }
+
+  function renderConfirm() {
+    if (!selectedListing || !parsedDates.checkIn || !parsedDates.checkOut) return;
+    var booking = getBookingNightsAndTotal();
+    var checkIn = booking.checkIn;
+    var checkOut = booking.checkOut;
+    var nights = booking.nights;
+    var subtotal = selectedListing.price * nights;
+    var total = booking.total;
+    el.confirmCard.innerHTML =
+      '<div class="confirm-name">' + selectedListing.name + '</div>' +
+      '<div class="confirm-meta">' + (selectedListing.rating || '') + (selectedListing.superhost ? ' · Superhost' : '') + '</div>' +
+      '<div class="confirm-dates-row">Check-in: ' + formatDate(checkIn) + '</div>' +
+      '<div class="confirm-dates-row">Check-out: ' + formatDate(checkOut) + '</div>' +
+      '<div class="confirm-duration">' + nights + ' nights</div>' +
+      '<div class="divider"></div>' +
+      '<div class="price-row"><span class="price-label">$' + selectedListing.price + ' × ' + nights + ' nights</span><span class="price-amount">$' + subtotal + '</span></div>' +
+      '<div class="price-row"><span class="price-label">Cleaning fee</span><span class="price-amount">$45</span></div>' +
+      '<div class="price-row total"><span class="price-label">Total</span><span class="price-amount">$' + total + '</span></div>' +
+      '<div class="divider"></div>' +
+      '<div class="payment-row">Company card ending in 4242</div>' +
+      '<span class="policy-pill policy-pill-green">Within travel policy</span>';
+  }
+
+  function speakResults() {
+    var list = getListings(parsedCity) || getListings('Austin');
+    var anchor = (list[0] && list[0].anchor) ? list[0].anchor : 'city center';
+    var msg = 'Here are your ' + list.length + ' policy-compliant stays in ' + parsedCity + '. ';
+    list.forEach(function(item, i) {
+      msg += 'Option ' + (i + 1) + ': ' + item.name + ', ' + item.price + ' dollars per night, ' + item.distance + ' from ' + anchor + ', ' + (item.superhost ? 'Superhost, ' : '') + item.amenities + '. ';
+    });
+    msg += 'Tap a card to book.';
+    var u = new SpeechSynthesisUtterance(msg);
+    u.rate = 1.3;
+    u.lang = 'en-US';
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }
+
+  function speakResultsWithCallback(cb) {
+    var list = getListings(parsedCity) || getListings('Austin');
+    var anchor = (list[0] && list[0].anchor) ? list[0].anchor : 'city center';
+    var msg = 'Here are your 3 policy-compliant stays in ' + parsedCity + '. ';
+    list.forEach(function(item, i) {
+      var distancePhrase = (i === 0) ? (item.distance + ' from ' + anchor) : (item.distance + ' away');
+      msg += 'Option ' + (i + 1) + ': ' + item.name + '. ' + item.price + ' dollars per night. ' + distancePhrase + '. ';
+    });
+    msg += 'Say a number to book.';
+    var u = new SpeechSynthesisUtterance(msg);
+    u.rate = 1.3;
+    u.lang = 'en-US';
+    u.onend = function() { if (cb) setTimeout(cb, 800); };
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }
+
+  var COMMAND_TIMEOUT_MS = 10000;
+
+  function startCommandListenerScreen2() {
+    cancelAllVoiceAndTTS();
+    if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) return;
+    var list = getListings(parsedCity) || getListings('Austin');
+    var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    commandRecognition = new SpeechRec();
+    window.activeRecognition = commandRecognition;
+    commandRecognition.continuous = true;
+    commandRecognition.interimResults = true;
+    commandRecognition.lang = 'en-US';
+    commandRecognition.maxAlternatives = 3;
+    var didAct = false;
+    var lastTranscript = '';
+    if (el.voiceIndicator) el.voiceIndicator.classList.add('show');
+    if (el.listeningHint2) el.listeningHint2.classList.add('show');
+    commandTimeoutId = setTimeout(function() {
+      commandTimeoutId = null;
+      if (commandRecognition) { try { commandRecognition.stop(); } catch (e) {} commandRecognition = null; }
+      if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+      if (el.listeningHint2) el.listeningHint2.classList.remove('show');
+      if (!didAct) speakTTS('No voice detected. Please tap a button to continue.');
+    }, COMMAND_TIMEOUT_MS);
+    commandRecognition.onresult = function(event) {
+      if (didAct || !event.results.length) return;
+      var lastIdx = event.results.length - 1;
+      var lastResult = event.results[lastIdx];
+      if (!lastResult[0] || !lastResult[0].transcript) return;
+      var t = lastResult[0].transcript;
+      t = t.toLowerCase().trim();
+      lastTranscript = t;
+      if (!t) return;
+      var target = checkVoiceBackCommand(t);
+      if (target) {
+        didAct = true;
+        if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+        if (commandRecognition) { try { commandRecognition.stop(); } catch (e) {} }
+        commandRecognition = null;
+        window.activeRecognition = null;
+        if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+        if (el.listeningHint2) el.listeningHint2.classList.remove('show');
+        speakTTS('Going back.', function() { goBack(target); });
+        return;
+      }
+      var idx = -1;
+      if (/\b(option\s*)?1\b|^1$|first|\bbook\s*(option\s*)?1\b|book\s*one\b|first\s+one|number\s+one|take\s+one|the\s+first|i'll\s+take\s+one|pick\s+one|choose\s+one|\bone\b/.test(t)) idx = 0;
+      else if (/\b(option\s*)?2\b|^2$|second|\bbook\s*(option\s*)?2\b|book\s*two\b|second\s+one|number\s+two|take\s+two|the\s+second|i'll\s+take\s+two|pick\s+two|choose\s+two|\btwo\b/.test(t)) idx = 1;
+      else if (/\b(option\s*)?3\b|^3$|third|\bbook\s*(option\s*)?3\b|book\s*three\b|third\s+one|number\s+three|take\s+three|the\s+third|i'll\s+take\s+three|pick\s+three|choose\s+three|\bthree\b/.test(t)) idx = 2;
+      if (idx >= 0 && list[idx]) {
+        didAct = true;
+        if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+        if (commandRecognition) { try { commandRecognition.stop(); } catch (e) {} }
+        commandRecognition = null;
+        window.activeRecognition = null;
+        if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+        if (el.listeningHint2) el.listeningHint2.classList.remove('show');
+        selectedListing = list[idx];
+        renderConfirm();
+        goToScreen(3);
+        startScreen3VoiceFlow();
+      }
+    };
+    commandRecognition.onend = commandRecognition.onerror = function() {
+      if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+      commandRecognition = null;
+      window.activeRecognition = null;
+      if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+      if (el.listeningHint2) el.listeningHint2.classList.remove('show');
+      if (didAct) return;
+      if (lastTranscript) {
+        var t = lastTranscript.toLowerCase().trim();
+        var target = checkVoiceBackCommand(t);
+        if (target) {
+          speakTTS('Going back.', function() { goBack(target); });
+          return;
+        }
+        var idx = -1;
+        if (/\b(option\s*)?1\b|^1$|first|book\s*one\b|number\s+one|take\s+one|pick\s+one|choose\s+one|\bone\b/.test(t)) idx = 0;
+        else if (/\b(option\s*)?2\b|^2$|second|book\s*two\b|number\s+two|take\s+two|pick\s+two|choose\s+two|\btwo\b/.test(t)) idx = 1;
+        else if (/\b(option\s*)?3\b|^3$|third|book\s*three\b|number\s+three|take\s+three|pick\s+three|choose\s+three|\bthree\b/.test(t)) idx = 2;
+        if (idx >= 0 && list[idx]) {
+          selectedListing = list[idx];
+          renderConfirm();
+          goToScreen(3);
+          startScreen3VoiceFlow();
+        }
+      }
+    };
+    try { commandRecognition.start(); } catch (e) {}
+  }
+
+  function startScreen2VoiceFlow() {
+    if (el.processingIndicator) el.processingIndicator.classList.add('show');
+    speakResultsWithCallback(function() {
+      if (el.processingIndicator) el.processingIndicator.classList.remove('show');
+      setTimeout(function() { startCommandListenerScreen2(); }, 400);
+    });
+  }
+
+  function startScreen3VoiceFlow() {
+    if (!selectedListing || !parsedDates.checkIn || !parsedDates.checkOut) return;
+    var booking = getBookingNightsAndTotal();
+    var nights = booking.nights;
+    var total = booking.total;
+    var msg = 'Here is your booking summary. ' + selectedListing.name + ', ' + nights + ' nights, total $' + total + ', charged to your company card. Say confirm to book or cancel to go back.';
+    if (el.processingIndicator) el.processingIndicator.classList.add('show');
+    speakTTS(msg, function() {
+      if (el.processingIndicator) el.processingIndicator.classList.remove('show');
+      cancelAllVoiceAndTTS();
+      if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) return;
+      var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      commandRecognition = new SpeechRec();
+      window.activeRecognition = commandRecognition;
+      commandRecognition.continuous = false;
+      commandRecognition.interimResults = true;
+      commandRecognition.lang = 'en-US';
+      if (el.voiceIndicator) el.voiceIndicator.classList.add('show');
+      commandTimeoutId = setTimeout(function() {
+        commandTimeoutId = null;
+        if (commandRecognition) { try { commandRecognition.stop(); } catch (e) {} commandRecognition = null; }
+        if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+        speakTTS('No voice detected. Please tap a button to continue.');
+      }, COMMAND_TIMEOUT_MS);
+      commandRecognition.onresult = function(event) {
+        if (!event.results.length) return;
+        var lastIdx = event.results.length - 1;
+        var lastResult = event.results[lastIdx];
+        if (!lastResult[0] || !lastResult[0].transcript) return;
+        var isFinal = lastResult.isFinal;
+        if (!isFinal && event.results.length > 1) return;
+        var t = lastResult[0].transcript;
+        t = t.toLowerCase().trim();
+        if (!t) return;
+        var target = checkVoiceBackCommand(t);
+        if (target) {
+          if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+          commandRecognition = null;
+          window.activeRecognition = null;
+          if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+          speakTTS('Going back.', function() { goBack(target); });
+          return;
+        }
+        if (/\b(confirm|yes|book\s*it|go\s*ahead)\b/.test(t)) {
+          if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+          commandRecognition = null;
+          if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+          goToScreen(4);
+          el.checkmarkWrap.classList.remove('animate');
+          el.bookingPill.textContent = selectedListing.name + ' · ' + parsedCity + ' · ' + formatDate(parsedDates.checkIn) + '–' + formatDate(parsedDates.checkOut);
+          requestAnimationFrame(function() { el.checkmarkWrap.classList.add('animate'); });
+          startScreen4VoiceFlow();
+        } else if (/\b(cancel|no|go\s*back)\b/.test(t)) {
+          if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+          commandRecognition = null;
+          window.activeRecognition = null;
+          if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+          goBack(2);
+        }
+      };
+      commandRecognition.onend = commandRecognition.onerror = function() {
+        if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+        commandRecognition = null;
+        if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+      };
+      try { commandRecognition.start(); } catch (e) {}
+    });
+  }
+
+  function startScreen4VoiceFlow() {
+    var msg = 'You\'re booked! Your confirmation has been sent to your work email. Say expense to push to Expensify, calendar to add to your calendar, or dashboard to view your trips.';
+    if (el.processingIndicator) el.processingIndicator.classList.add('show');
+    speakTTS(msg, function() {
+      if (el.processingIndicator) el.processingIndicator.classList.remove('show');
+      cancelAllVoiceAndTTS();
+      if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) return;
+      var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      commandRecognition = new SpeechRec();
+      window.activeRecognition = commandRecognition;
+      commandRecognition.continuous = true;
+      commandRecognition.interimResults = true;
+      commandRecognition.lang = 'en-US';
+      var didAct = false;
+      var lastTranscript = '';
+      if (el.voiceIndicator) el.voiceIndicator.classList.add('show');
+      commandTimeoutId = setTimeout(function() {
+        commandTimeoutId = null;
+        if (commandRecognition) { try { commandRecognition.stop(); } catch (e) {} commandRecognition = null; }
+        if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+        if (!didAct) speakTTS('No voice detected. Please tap a button to continue.');
+      }, COMMAND_TIMEOUT_MS);
+      commandRecognition.onresult = function(event) {
+        if (didAct || !event.results.length) return;
+        var lastIdx = event.results.length - 1;
+        var lastResult = event.results[lastIdx];
+        if (!lastResult[0] || !lastResult[0].transcript) return;
+        var t = lastResult[0].transcript;
+        t = t.toLowerCase().trim();
+        lastTranscript = t;
+        if (!t) return;
+        var target = checkVoiceBackCommand(t);
+        if (target) {
+          didAct = true;
+          if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+          if (commandRecognition) { try { commandRecognition.stop(); } catch (e) {} }
+          commandRecognition = null;
+          window.activeRecognition = null;
+          if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+          speakTTS('Going back.', function() { goBack(target); });
+          return;
+        }
+        if (/\bexpense\b/.test(t)) {
+          didAct = true;
+          if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+          if (commandRecognition) { try { commandRecognition.stop(); } catch (e) {} }
+          commandRecognition = null;
+          if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+          el.pushExpense.click();
+        } else if (/\bcalendar\b/.test(t)) {
+          didAct = true;
+          if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+          if (commandRecognition) { try { commandRecognition.stop(); } catch (e) {} }
+          commandRecognition = null;
+          if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+          el.addToCalendar.click();
+        } else if (/\bdashboard\b|my\s*trips|view\s*(my\s*)?trips|view\s*dashboard|show\s*dashboard|go\s*to\s*dashboard|take\s*me\s*to\s*dashboard|trips\b/.test(t)) {
+          didAct = true;
+          if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+          if (commandRecognition) { try { commandRecognition.stop(); } catch (e) {} }
+          commandRecognition = null;
+          window.activeRecognition = null;
+          if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+          previousScreen = 4;
+          goToScreen(5);
+        } else if (/\b(home|new\s*trip|search\s*again)\b/.test(t)) {
+          didAct = true;
+          if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+          if (commandRecognition) { try { commandRecognition.stop(); } catch (e) {} }
+          commandRecognition = null;
+          window.activeRecognition = null;
+          if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+          speakTTS('Going back.', function() { goBack(1); });
+        }
+      };
+      commandRecognition.onend = commandRecognition.onerror = function() {
+        if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+        commandRecognition = null;
+        window.activeRecognition = null;
+        if (el.voiceIndicator) el.voiceIndicator.classList.remove('show');
+        if (didAct) return;
+        if (lastTranscript) {
+          var t = lastTranscript.toLowerCase().trim();
+          var target = checkVoiceBackCommand(t);
+          if (target) {
+            speakTTS('Going back.', function() { goBack(target); });
+            return;
+          }
+          if (/\bexpense\b/.test(t)) el.pushExpense.click();
+          else if (/\bcalendar\b/.test(t)) el.addToCalendar.click();
+          else if (/\bdashboard\b|my\s*trips|view\s*(my\s*)?trips|view\s*dashboard|show\s*dashboard|go\s*to\s*dashboard|trips\b/.test(t)) {
+            previousScreen = 4;
+            goToScreen(5);
+          } else if (/\b(home|new\s*trip|search\s*again)\b/.test(t)) speakTTS('Going back.', function() { goBack(1); });
+        }
+      };
+      setTimeout(function() { try { commandRecognition.start(); } catch (e) {} }, 400);
+    });
+  }
+
+  function showToast(message) {
+    el.toast.textContent = message;
+    el.toast.classList.add('show');
+    setTimeout(function() { el.toast.classList.remove('show'); }, 3000);
+  }
+
+  function startDashboardVoiceListener() {
+    cancelAllVoiceAndTTS();
+    if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) return;
+    var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    commandRecognition = new SpeechRec();
+    window.activeRecognition = commandRecognition;
+    commandRecognition.continuous = false;
+    commandRecognition.interimResults = true;
+    commandRecognition.lang = 'en-US';
+    commandTimeoutId = setTimeout(function() {
+      commandTimeoutId = null;
+      commandRecognition = null;
+      window.activeRecognition = null;
+    }, 15000);
+    commandRecognition.onresult = function(event) {
+      var t = '';
+      for (var i = 0; i < event.results.length; i++) t += event.results[i][0].transcript;
+      t = t.toLowerCase().trim();
+      var target = checkVoiceBackCommand(t);
+      if (target) {
+        if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+        commandRecognition = null;
+        window.activeRecognition = null;
+        speakTTS('Going back.', function() { goBack(target); });
+        return;
+      }
+      if (/\bexpense\s+(.+)/.test(t)) {
+        var tripName = t.replace(/expense\s+/, '').trim();
+        var upcoming = [];
+        if (selectedListing && parsedDates.checkIn && parsedDates.checkOut) {
+          var nights = Math.round((parsedDates.checkOut - parsedDates.checkIn) / (24 * 60 * 60 * 1000));
+          upcoming.push({ name: selectedListing.name, city: parsedCity, checkIn: parsedDates.checkIn, checkOut: parsedDates.checkOut, price: selectedListing.price, total: selectedListing.price * nights + 45 });
+        }
+        DASHBOARD_UPCOMING.forEach(function(tr) {
+          if (tr.id !== 'session' && tr.name) upcoming.push(tr);
+        });
+        var match = upcoming.filter(function(tr) { return tr.name && tr.name.toLowerCase().indexOf(tripName) !== -1; })[0];
+        if (match) {
+          if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+          commandRecognition = null;
+          window.activeRecognition = null;
+          openExpenseForTrip(match);
+        }
+      }
+    };
+    commandRecognition.onend = commandRecognition.onerror = function() {
+      if (commandTimeoutId) { clearTimeout(commandTimeoutId); commandTimeoutId = null; }
+      commandRecognition = null;
+      window.activeRecognition = null;
+    };
+    try { commandRecognition.start(); } catch (e) {}
+  }
+
+  function openCalendarForTrip(trip) {
+    var city = trip.city;
+    var name = trip.name;
+    var checkIn = trip.checkIn;
+    var checkOut = trip.checkOut;
+    var dateStr = formatDate(checkIn) + ' – ' + formatDate(checkOut);
+    el.eventCard.innerHTML =
+      '<div class="event-title">' + city + ' Trip · ' + name + '</div>' +
+      '<div class="event-detail">Date: ' + dateStr + '</div>' +
+      '<div class="event-detail">Location: 123 Main St, ' + city + '</div>' +
+      '<span class="event-status">Added to Google Calendar</span>';
+    el.calendarOverlay.classList.add('show');
+  }
+
+  function openExpenseForTrip(trip) {
+    var nights = Math.round((trip.checkOut - trip.checkIn) / (24 * 60 * 60 * 1000));
+    var subtotal = trip.price != null ? trip.price * nights : (trip.total - 45);
+    var total = subtotal + 45;
+    el.expenseTable.innerHTML =
+      '<tr><td>Accommodation (' + nights + ' nights)</td><td>$' + subtotal + '</td></tr>' +
+      '<tr><td>Cleaning fee</td><td>$45</td></tr>' +
+      '<tr><td>Total</td><td>$' + total + '</td></tr>';
+    el.expenseCategory.textContent = 'Category: Business Travel – Accommodation';
+    el.expenseReportId.textContent = 'Report #: EXP-2026-' + Math.floor(1000 + Math.random() * 9000);
+    el.expenseOverlay.classList.add('show');
+  }
+
+  var DASHBOARD_UPCOMING = [
+    { id: 'session', name: null, city: null, checkIn: null, checkOut: null, price: null, status: 'confirmed', image: null },
+    { id: '2', name: 'Beacon Hill Studio', city: 'Boston', checkIn: new Date(2026, 3, 7), checkOut: new Date(2026, 3, 10), price: 155, total: 510, status: 'confirmed', image: 'https://picsum.photos/id/101/96/96' },
+    { id: '3', name: 'River North Suite', city: 'Chicago', checkIn: new Date(2026, 3, 22), checkOut: new Date(2026, 3, 24), price: 210, total: 435, status: 'pending', image: 'https://picsum.photos/id/102/96/96', abovePolicy: true }
+  ];
+  var DASHBOARD_PAST = [
+    { name: 'Downtown Loft', city: 'Austin', checkIn: new Date(2026, 1, 10), checkOut: new Date(2026, 1, 13), total: 525, status: 'expensed', image: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=96&h=96&fit=crop' },
+    { name: 'Back Bay Apartment', city: 'Boston', checkIn: new Date(2026, 0, 28), checkOut: new Date(2026, 0, 30), total: 395, status: 'expensed', image: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=96&h=96&fit=crop' },
+    { name: 'The Austin Suite', city: 'Austin', checkIn: new Date(2026, 0, 5), checkOut: new Date(2026, 0, 8), total: 600, status: 'expensed', image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=96&h=96&fit=crop' },
+    { name: 'South End Loft', city: 'Boston', checkIn: new Date(2025, 11, 12), checkOut: new Date(2025, 11, 15), total: 465, status: 'expensed', image: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=96&h=96&fit=crop' },
+    { name: 'Merchandise Mart View', city: 'Chicago', checkIn: new Date(2025, 10, 20), checkOut: new Date(2025, 10, 22), total: 420, status: 'expensed', image: 'https://images.unsplash.com/photo-1505693314120-0d443867891c?w=96&h=96&fit=crop', abovePolicy: true }
+  ];
+  var DASHBOARD_PENDING = [
+    { name: 'South Congress Studio', city: 'Austin', checkIn: new Date(2026, 2, 25), checkOut: new Date(2026, 2, 27), total: 335, status: 'pending_approval', image: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=96&h=96&fit=crop' },
+    { name: 'Copley Square Apartment', city: 'Boston', checkIn: new Date(2026, 3, 14), checkOut: new Date(2026, 3, 17), total: 585, status: 'pending_approval', image: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=96&h=96&fit=crop' },
+    { name: 'Wicker Park Loft', city: 'Chicago', checkIn: new Date(2026, 4, 1), checkOut: new Date(2026, 4, 4), total: 720, status: 'pending_approval', image: 'https://images.unsplash.com/photo-1486718448742-163732cd1544?w=96&h=96&fit=crop', abovePolicy: true }
+  ];
+
+  function cityInitialColor(city) {
+    if (!city) return 'coral';
+    var c = city.charAt(0).toUpperCase();
+    if (c === 'A') return 'coral';
+    if (c === 'B') return 'blue';
+    if (c === 'C') return 'green';
+    return 'coral';
+  }
+
+  function formatDateShort(d) {
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[d.getMonth()] + ' ' + d.getDate();
+  }
+
+  function renderDashboardTabs() {
+    var upcoming = [];
+    if (selectedListing && parsedDates.checkIn && parsedDates.checkOut) {
+      var booking = getBookingNightsAndTotal();
+      upcoming.push({
+        id: 'session',
+        name: selectedListing.name,
+        city: parsedCity,
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        price: selectedListing.price,
+        total: booking.total,
+        status: 'confirmed',
+        image: selectedListing.image || null
+      });
+    }
+    DASHBOARD_UPCOMING.forEach(function(t) {
+      if (t.id === 'session') return;
+      upcoming.push({
+        id: t.id,
+        name: t.name,
+        city: t.city,
+        checkIn: t.checkIn,
+        checkOut: t.checkOut,
+        price: t.price,
+        total: t.total,
+        status: t.status,
+        image: t.image,
+        abovePolicy: t.abovePolicy
+      });
+    });
+
+    var allTrips = upcoming.concat(DASHBOARD_PAST).concat(DASHBOARD_PENDING);
+    var tripsCount = allTrips.length;
+    var totalSpend = 0;
+    allTrips.forEach(function(t) { totalSpend += (t.total || 0); });
+    var compliantCount = allTrips.filter(function(t) { return !t.abovePolicy; }).length;
+    var policyPct = tripsCount ? Math.round((compliantCount / tripsCount) * 100) : 100;
+
+    var elTrips = document.getElementById('dashboardTripsCount');
+    if (elTrips) elTrips.textContent = String(tripsCount);
+    var elSpend = document.getElementById('dashboardTotalSpend');
+    if (elSpend) elSpend.textContent = '$' + totalSpend.toLocaleString();
+    var elPct = document.getElementById('dashboardPolicyPct');
+    if (elPct) elPct.textContent = policyPct + '%';
+
+    el.tabUpcoming.innerHTML = '';
+    upcoming.forEach(function(trip) {
+      var initial = (trip.city && trip.city.charAt(0)) || 'A';
+      var colorClass = cityInitialColor(trip.city);
+      var dateStr = formatDateShort(trip.checkIn) + ' – ' + formatDateShort(trip.checkOut);
+      var statusClass = trip.status === 'confirmed' ? 'confirmed' : 'pending';
+      var statusText = trip.status === 'confirmed' ? 'Confirmed' : 'Pending';
+      var card = document.createElement('div');
+      card.className = 'trip-card';
+      card.innerHTML =
+        '<div class="trip-card-photo">' + (trip.image ? '<img src="' + trip.image + '" alt="" referrerpolicy="no-referrer">' : '') + '</div>' +
+        '<div class="trip-card-body">' +
+          '<div class="trip-card-name">' + trip.name + '</div>' +
+          '<div class="trip-card-meta">' + trip.city + ' · ' + dateStr + '</div>' +
+          '<div class="trip-card-row">' +
+            '<span class="trip-card-price">$' + trip.total + '</span>' +
+            '<span class="trip-card-status ' + statusClass + '">' + statusText + '</span>' +
+          '</div>' +
+          '<div class="trip-card-actions">' +
+            '<button type="button" class="trip-action-link btn-calendar" data-trip="upcoming-' + (trip.id || trip.name) + '">Add to calendar</button><span class="sep">·</span>' +
+            '<button type="button" class="trip-action-link btn-expense" data-trip="upcoming-' + (trip.id || trip.name) + '">Submit expense</button><span class="sep">·</span>' +
+            '<button type="button" class="trip-action-link btn-modify" data-trip="upcoming-' + (trip.id || trip.name) + '">Modify</button>' +
+          '</div>' +
+        '</div>';
+      el.tabUpcoming.appendChild(card);
+      var data = { name: trip.name, city: trip.city, checkIn: trip.checkIn, checkOut: trip.checkOut, price: trip.price, total: trip.total };
+      card.querySelector('.btn-calendar').addEventListener('click', function() { openCalendarForTrip(data); });
+      card.querySelector('.btn-expense').addEventListener('click', function() { openExpenseForTrip(data); });
+      card.querySelector('.btn-modify').addEventListener('click', function() {
+        modifySheetTrip = data;
+        el.modifySheet.classList.add('show');
+        el.modifyBackdrop.classList.add('show');
+      });
+    });
+
+    el.tabPast.innerHTML = '';
+    DASHBOARD_PAST.forEach(function(trip) {
+      var dateStr = formatDateShort(trip.checkIn) + ' – ' + formatDateShort(trip.checkOut);
+      var card = document.createElement('div');
+      card.className = 'trip-card';
+      card.innerHTML =
+        '<div class="trip-card-photo">' + (trip.image ? '<img src="' + trip.image + '" alt="" referrerpolicy="no-referrer">' : '') + '</div>' +
+        '<div class="trip-card-body">' +
+          '<div class="trip-card-name">' + trip.name + '</div>' +
+          '<div class="trip-card-meta">' + trip.city + ' · ' + dateStr + '</div>' +
+          '<div class="trip-card-row">' +
+            '<span class="trip-card-price">$' + trip.total + '</span>' +
+            '<span class="trip-card-status expensed">Expensed</span>' +
+          '</div>' +
+          '<div class="trip-card-actions">' +
+            '<button type="button" class="trip-action-link btn-calendar-past">Add to calendar</button><span class="sep">·</span>' +
+            '<button type="button" class="trip-action-link btn-expense-past">Submit expense</button>' +
+          '</div>' +
+        '</div>';
+      el.tabPast.appendChild(card);
+      var data = { name: trip.name, city: trip.city, checkIn: trip.checkIn, checkOut: trip.checkOut, price: Math.round(trip.total / 3), total: trip.total };
+      card.querySelector('.btn-calendar-past').addEventListener('click', function() { openCalendarForTrip(data); });
+      card.querySelector('.btn-expense-past').addEventListener('click', function() { openExpenseForTrip(data); });
+    });
+
+    el.tabPending.innerHTML = '';
+    DASHBOARD_PENDING.forEach(function(trip) {
+      var dateStr = formatDateShort(trip.checkIn) + ' – ' + formatDateShort(trip.checkOut);
+      var card = document.createElement('div');
+      card.className = 'trip-card';
+      card.innerHTML =
+        '<div class="trip-card-photo">' + (trip.image ? '<img src="' + trip.image + '" alt="" referrerpolicy="no-referrer">' : '') + '</div>' +
+        '<div class="trip-card-body">' +
+          '<div class="trip-card-name">' + trip.name + '</div>' +
+          '<div class="trip-card-meta">' + trip.city + ' · ' + dateStr + '</div>' +
+          '<div class="trip-card-row">' +
+            '<span class="trip-card-price">$' + trip.total + '</span>' +
+            '<span class="trip-card-status pending">Awaiting manager approval</span>' +
+          '</div>' +
+          '<div class="trip-card-reminder"><button type="button" class="btn-send-reminder">Send Reminder</button></div>' +
+        '</div>';
+      el.tabPending.appendChild(card);
+    });
+  }
+
+  // ─── Voice (Web Speech API) ─────────────────────────────────────────────
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var silenceTimeoutId = null;
+  var noSpeechRetryCount = 0;
+  var MAX_NO_SPEECH_RETRIES = 4;
+  var LISTENING_SILENCE_MS = 4000;
+  var LISTENING_MAX_MS = 12000;
+  var RESTART_DELAY_MS = 350;
+
+  if (SpeechRecognition) {
+    var recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    recognition.maxAlternatives = 1;
+
+    function clearSilenceTimeout() {
+      if (silenceTimeoutId) {
+        clearTimeout(silenceTimeoutId);
+        silenceTimeoutId = null;
+      }
+    }
+
+    function startListening() {
+      clearSilenceTimeout();
+      try {
+        window.activeRecognition = recognition;
+        recognition.start();
+        el.micBtn.classList.add('listening');
+        if (el.listeningHint) el.listeningHint.classList.add('show');
+        el.micStatus.textContent = 'Listening... Speak now';
+        if (el.btnClear) el.btnClear.classList.add('show');
+        silenceTimeoutId = setTimeout(function() {
+          silenceTimeoutId = null;
+          recognition.stop();
+        }, LISTENING_MAX_MS);
+      } catch (err) {
+        el.micStatus.textContent = 'Could not start. Try again.';
+      }
+    }
+
+    el.micBtn.addEventListener('click', function() {
+      if (el.micBtn.classList.contains('listening')) {
+        clearSilenceTimeout();
+        if (transcriptSilenceTimeoutId) {
+          clearTimeout(transcriptSilenceTimeoutId);
+          transcriptSilenceTimeoutId = null;
+        }
+        noSpeechRetryCount = MAX_NO_SPEECH_RETRIES;
+        recognition.stop();
+        return;
+      }
+      if (!micPermissionBannerHidden) {
+        micPermissionBannerHidden = true;
+        el.micPermissionBanner.classList.add('hidden');
+      }
+      transcript = '';
+      noSpeechRetryCount = 0;
+      el.transcriptBox.textContent = '';
+      el.transcriptBox.classList.remove('visible');
+      el.btnSearch.classList.remove('visible');
+      startListening();
+    });
+
+    recognition.onresult = function(event) {
+      var interim = '';
+      for (var i = event.resultIndex; i < event.results.length; i++) {
+        var r = event.results[i];
+        var text = r[0].transcript;
+        if (r.isFinal) {
+          transcript += text;
+          noSpeechRetryCount = 0;
+          if (transcriptSilenceTimeoutId) clearTimeout(transcriptSilenceTimeoutId);
+          transcriptSilenceTimeoutId = setTimeout(function() {
+            transcriptSilenceTimeoutId = null;
+            try { recognition.stop(); } catch (e) {}
+            runSearch();
+          }, AUTO_SEARCH_SILENCE_MS);
+          clearSilenceTimeout();
+          silenceTimeoutId = setTimeout(function() {
+            silenceTimeoutId = null;
+            recognition.stop();
+          }, LISTENING_SILENCE_MS);
+        } else {
+          interim = text;
+        }
+      }
+      var display = transcript + interim;
+      el.transcriptBox.textContent = display;
+      if (display) {
+        el.transcriptBox.classList.add('visible');
+        el.btnSearch.classList.add('visible');
+        el.micStatus.textContent = 'Tap Search when ready, or keep speaking';
+      }
+      if (el.btnClear) {
+        if (el.transcriptBox.classList.contains('visible') || el.micBtn.classList.contains('listening')) el.btnClear.classList.add('show');
+        else el.btnClear.classList.remove('show');
+      }
+    };
+
+    recognition.onerror = function(event) {
+      clearSilenceTimeout();
+      window.activeRecognition = null;
+      if (event.error === 'no-speech') {
+        return;
+      }
+      noSpeechRetryCount = MAX_NO_SPEECH_RETRIES;
+      el.micBtn.classList.remove('listening');
+      if (el.listeningHint) el.listeningHint.classList.remove('show');
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        el.micStatus.textContent = 'Microphone blocked. Click the lock icon → Site settings → Microphone → Allow.';
+      } else {
+        el.micStatus.textContent = 'Mic error: ' + event.error + '. Use preset chips below.';
+      }
+    };
+
+    recognition.onend = function() {
+      clearSilenceTimeout();
+      if (el.transcriptBox.textContent) {
+        window.activeRecognition = null;
+        el.micBtn.classList.remove('listening');
+        if (el.listeningHint) el.listeningHint.classList.remove('show');
+        el.micStatus.textContent = 'Tap Search when ready';
+        return;
+      }
+      if (noSpeechRetryCount < MAX_NO_SPEECH_RETRIES) {
+        noSpeechRetryCount += 1;
+        el.micStatus.textContent = 'Listening... Speak now (' + noSpeechRetryCount + '/' + MAX_NO_SPEECH_RETRIES + ')';
+        setTimeout(function() {
+          if (el.micBtn.classList.contains('listening')) {
+            try {
+              recognition.start();
+              silenceTimeoutId = setTimeout(function() {
+                silenceTimeoutId = null;
+                recognition.stop();
+              }, LISTENING_MAX_MS);
+            } catch (e) {}
+          }
+        }, RESTART_DELAY_MS);
+        return;
+      }
+      window.activeRecognition = null;
+      el.micBtn.classList.remove('listening');
+      if (el.listeningHint) el.listeningHint.classList.remove('show');
+      if (el.btnClear) el.btnClear.classList.remove('show');
+      if (window.location.protocol === 'file:') {
+        el.micStatus.textContent = 'Voice needs localhost. Run: <code>npx serve .</code> then open <strong>http://localhost:3000</strong>';
+      } else {
+        el.micStatus.textContent = 'Nothing heard. Tap the mic again or use preset chips.';
+      }
+    };
+  } else {
+    el.micBtn.disabled = true;
+    el.micStatus.textContent = 'Voice not supported in Chrome? Try allowing mic access in browser settings. Use preset chips below.';
+    el.voiceUnsupported.classList.add('show');
+  }
+
+  el.btnSearch.addEventListener('click', function() {
+    if (transcriptSilenceTimeoutId) {
+      clearTimeout(transcriptSilenceTimeoutId);
+      transcriptSilenceTimeoutId = null;
+    }
+    runSearch();
+  });
+
+  if (el.btnClear) {
+    el.btnClear.addEventListener('click', function() {
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      if (window.activeRecognition) { try { window.activeRecognition.stop(); } catch (e) {} window.activeRecognition = null; }
+      if (transcriptSilenceTimeoutId) { clearTimeout(transcriptSilenceTimeoutId); transcriptSilenceTimeoutId = null; }
+      transcript = '';
+      if (el.transcriptBox) { el.transcriptBox.textContent = ''; el.transcriptBox.classList.remove('visible'); }
+      if (el.btnSearch) el.btnSearch.classList.remove('visible');
+      if (el.micBtn) el.micBtn.classList.remove('listening');
+      if (el.micStatus) el.micStatus.textContent = 'Tap to speak';
+      if (el.listeningHint) el.listeningHint.classList.remove('show');
+      if (el.btnClear) el.btnClear.classList.remove('show');
+    });
+  }
+
+  document.querySelectorAll('.chip').forEach(function(chip) {
+    chip.addEventListener('click', function() {
+      var key = chip.getAttribute('data-preset');
+      var presetText = PRESETS[key] || '';
+      transcript = presetText;
+      var p = parseTranscript(presetText);
+      if (!p.city) {
+        el.parsedFeedback.textContent = 'Could not parse preset. Try another.';
+        el.parsedFeedback.classList.add('show');
+        return;
+      }
+      parsedCity = p.city;
+      parsedPrice = p.price || 200;
+      parsedNear = p.near || 'city center';
+      parsedDates.checkIn = p.checkIn;
+      parsedDates.checkOut = p.checkOut;
+      awaitingCityConfirm = false;
+      suggestedCity = null;
+      updatePolicyLine();
+      el.transcriptBox.classList.remove('visible');
+      el.btnSearch.classList.remove('visible');
+      if (el.btnClear) el.btnClear.classList.remove('show');
+      var dateStr = (p.checkIn && p.checkOut) ? (formatDate(p.checkIn) + ' – ' + formatDate(p.checkOut)) : '';
+      el.parsedFeedback.innerHTML = 'Searching ' + parsedCity + ' · ' + dateStr + ' · &lt;$' + parsedPrice + '/night...';
+      el.parsedFeedback.classList.add('show');
+      el.skeletonLoader.classList.add('show');
+      el.voiceUnsupported.classList.remove('show');
+      el.cityNotInDemo.classList.remove('show');
+      if (el.chipsContainer) el.chipsContainer.classList.remove('highlight-presets');
+      var list = getListings(parsedCity);
+      showAllAbovePolicy = list.length > 0 && !list.some(function(item) { return item.price <= parsedPrice; });
+      setTimeout(function() {
+        el.parsedFeedback.classList.remove('show');
+        el.skeletonLoader.classList.remove('show');
+        renderResults();
+        goToScreen(2);
+        setTimeout(function() { if (currentScreen === 2) startScreen2VoiceFlow(); }, 400);
+      }, 1200);
+    });
+  });
+
+  el.hearOptions.addEventListener('click', speakResults);
+
+  el.btnConfirm.addEventListener('click', function() {
+    cancelAllVoiceAndTTS();
+    goToScreen(4);
+    el.checkmarkWrap.classList.remove('animate');
+    el.bookingPill.textContent = selectedListing.name + ' · ' + parsedCity + ' · ' + formatDate(parsedDates.checkIn) + '–' + formatDate(parsedDates.checkOut);
+    requestAnimationFrame(function() { el.checkmarkWrap.classList.add('animate'); });
+    setTimeout(function() { if (currentScreen === 4) startScreen4VoiceFlow(); }, 800);
+  });
+
+  el.btnBack.addEventListener('click', function() {
+    goBack(2);
+  });
+
+  el.addToCalendar.addEventListener('click', function() {
+    var booking = getBookingNightsAndTotal();
+    var title = parsedCity + ' Trip · ' + selectedListing.name;
+    var dateStr = (booking.checkIn && booking.checkOut) ? (formatDate(booking.checkIn) + ' – ' + formatDate(booking.checkOut)) : '';
+    el.eventCard.innerHTML =
+      '<div class="event-title">' + title + '</div>' +
+      '<div class="event-detail">Date: ' + dateStr + '</div>' +
+      '<div class="event-detail">Location: 123 Main St, ' + parsedCity + '</div>' +
+      '<span class="event-status">Added to Google Calendar</span>';
+    el.calendarOverlay.style.display = '';
+    el.calendarOverlay.classList.add('show');
+    var calModal = el.calendarOverlay.querySelector('.modal');
+    if (calModal) calModal.style.display = '';
+  });
+  el.calendarClose.addEventListener('click', function() {
+    cancelAllVoiceAndTTS();
+    el.calendarOverlay.classList.remove('show');
+  });
+  el.calendarOverlay.addEventListener('click', function(e) {
+    if (e.target === el.calendarOverlay) {
+      cancelAllVoiceAndTTS();
+      el.calendarOverlay.classList.remove('show');
+    }
+  });
+
+  el.pushExpense.addEventListener('click', function() {
+    var booking = getBookingNightsAndTotal();
+    var nights = booking.nights;
+    var subtotal = selectedListing.price * nights;
+    var total = booking.total;
+    el.expenseTable.innerHTML =
+      '<tr><td>Accommodation (' + nights + ' nights)</td><td>$' + subtotal + '</td></tr>' +
+      '<tr><td>Cleaning fee</td><td>$45</td></tr>' +
+      '<tr><td>Total</td><td>$' + total + '</td></tr>';
+    el.expenseCategory.textContent = 'Category: Business Travel – Accommodation';
+    el.expenseReportId.textContent = 'Report #: EXP-2026-' + Math.floor(1000 + Math.random() * 9000);
+    el.expenseOverlay.style.display = '';
+    el.expenseOverlay.classList.add('show');
+    var expModal = el.expenseOverlay.querySelector('.modal');
+    if (expModal) expModal.style.display = '';
+  });
+  el.expenseClose.addEventListener('click', function() {
+    cancelAllVoiceAndTTS();
+    el.expenseOverlay.classList.remove('show');
+  });
+  el.expenseOverlay.addEventListener('click', function(e) {
+    if (e.target === el.expenseOverlay) {
+      cancelAllVoiceAndTTS();
+      el.expenseOverlay.classList.remove('show');
+    }
+  });
+
+  el.bookAnother.addEventListener('click', function() {
+    goBack(1);
+  });
+
+  el.viewDashboard.addEventListener('click', function() {
+    goToScreen(5);
+  });
+
+  function openMyTrips() {
+    goToScreen(5);
+  }
+  // Expose for delegated nav (avoids scope issues)
+  window.__navGoBack = goBack;
+  window.__navOpenMyTrips = openMyTrips;
+  window.__previousScreen = 1;
+  window.__showDashboardTab = function(tabName) {
+    var tabs = document.querySelectorAll('.dashboard-tab');
+    var contents = { upcoming: document.getElementById('tabUpcoming'), past: document.getElementById('tabPast'), pending: document.getElementById('tabPending') };
+    tabs.forEach(function(t) { t.classList.remove('active'); if (t.getAttribute('data-tab') === tabName) t.classList.add('active'); });
+    if (contents.upcoming) contents.upcoming.classList.remove('active');
+    if (contents.past) contents.past.classList.remove('active');
+    if (contents.pending) contents.pending.classList.remove('active');
+    if (contents[tabName]) contents[tabName].classList.add('active');
+  };
+
+  // Delegated nav
+  var appEl = document.getElementById('app');
+  function handleNavClick(e) {
+    var node = e.target;
+    while (node && node !== appEl) {
+      if (node.getAttribute) {
+        var goBackTarget = node.getAttribute('data-go-back');
+        if (goBackTarget !== null && goBackTarget !== '') {
+          e.preventDefault();
+          e.stopPropagation();
+          if (window.__navGoBack) {
+            if (goBackTarget === 'previous') window.__navGoBack(window.__previousScreen || 1);
+            else { var num = parseInt(goBackTarget, 10); if (!isNaN(num)) window.__navGoBack(num); }
+          }
+          return;
+        }
+        var tabName = node.getAttribute('data-tab');
+        if (tabName === 'upcoming' || tabName === 'past' || tabName === 'pending') {
+          e.preventDefault();
+          e.stopPropagation();
+          document.querySelectorAll('.dashboard-tab').forEach(function(x) { x.classList.remove('active'); });
+          node.classList.add('active');
+          if (el.tabUpcoming) el.tabUpcoming.classList.remove('active');
+          if (el.tabPast) el.tabPast.classList.remove('active');
+          if (el.tabPending) el.tabPending.classList.remove('active');
+          if (tabName === 'upcoming' && el.tabUpcoming) el.tabUpcoming.classList.add('active');
+          else if (tabName === 'past' && el.tabPast) el.tabPast.classList.add('active');
+          else if (tabName === 'pending' && el.tabPending) el.tabPending.classList.add('active');
+          return;
+        }
+      }
+      node = node.parentNode;
+    }
+  }
+  appEl.addEventListener('click', handleNavClick, true);
+  appEl.addEventListener('touchend', function(e) {
+    handleNavClick(e);
+    if (e.target && e.target.closest && (e.target.closest('[data-go-back]') || e.target.closest('[data-nav="my-trips"]'))) {
+      e.preventDefault();
+    }
+  }, true);
+
+  document.querySelectorAll('.dashboard-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      var t = tab.getAttribute('data-tab');
+      if (!t) return;
+      document.querySelectorAll('.dashboard-tab').forEach(function(x) { x.classList.remove('active'); });
+      tab.classList.add('active');
+      if (el.tabUpcoming) el.tabUpcoming.classList.remove('active');
+      if (el.tabPast) el.tabPast.classList.remove('active');
+      if (el.tabPending) el.tabPending.classList.remove('active');
+      if (t === 'upcoming') el.tabUpcoming.classList.add('active');
+      else if (t === 'past') el.tabPast.classList.add('active');
+      else if (t === 'pending') el.tabPending.classList.add('active');
+    });
+  });
+
+  el.modifyChangeDates.addEventListener('click', function() {
+    el.modifySheet.classList.remove('show');
+    el.modifyBackdrop.classList.remove('show');
+    showToast('Date changes require host approval. Request sent.');
+  });
+  el.modifyCancelBooking.addEventListener('click', function() {
+    cancelConfirmTrip = modifySheetTrip;
+    el.modifySheet.classList.remove('show');
+    el.modifyBackdrop.classList.remove('show');
+    el.cancelConfirmOverlay.classList.add('show');
+  });
+  el.modifyClose.addEventListener('click', function() {
+    cancelAllVoiceAndTTS();
+    el.modifySheet.classList.remove('show');
+    el.modifyBackdrop.classList.remove('show');
+  });
+  el.modifyBackdrop.addEventListener('click', function() {
+    cancelAllVoiceAndTTS();
+    el.modifySheet.classList.remove('show');
+    el.modifyBackdrop.classList.remove('show');
+  });
+
+  el.cancelConfirmYes.addEventListener('click', function() {
+    cancelAllVoiceAndTTS();
+    el.cancelConfirmOverlay.classList.remove('show');
+    showToast('Cancellation request submitted.');
+    cancelConfirmTrip = null;
+  });
+  el.cancelConfirmKeep.addEventListener('click', function() {
+    cancelAllVoiceAndTTS();
+    el.cancelConfirmOverlay.classList.remove('show');
+    cancelConfirmTrip = null;
+  });
+  el.cancelConfirmOverlay.addEventListener('click', function(e) {
+    if (e.target === el.cancelConfirmOverlay) {
+      cancelAllVoiceAndTTS();
+      el.cancelConfirmOverlay.classList.remove('show');
+    }
+  });
+
+  if (el.actionConfirmYes) {
+    el.actionConfirmYes.addEventListener('click', function() {
+      if (typeof pendingActionConfirm === 'function') {
+        pendingActionConfirm();
+      }
+      el.actionConfirmOverlay.classList.remove('show');
+      pendingActionConfirm = null;
+    });
+  }
+  if (el.actionConfirmNo) {
+    el.actionConfirmNo.addEventListener('click', function() {
+      el.actionConfirmOverlay.classList.remove('show');
+      pendingActionConfirm = null;
+    });
+  }
+  if (el.actionConfirmOverlay) {
+    el.actionConfirmOverlay.addEventListener('click', function(e) {
+      if (e.target === el.actionConfirmOverlay) {
+        el.actionConfirmOverlay.classList.remove('show');
+        pendingActionConfirm = null;
+      }
+    });
+  }
+
+  // ─── Init ──────────────────────────────────────────────────────────────
+  document.querySelectorAll('.progress-bar .step').forEach(function(step, i) {
+    step.classList.toggle('active', i < 1);
+  });
+  if (window.location.protocol === 'file:') {
+    el.micFileWarning.classList.add('show');
+  }
+})();
+  </script>
+</body>
+</html>
+<!--
+PROTOTYPE ASSUMPTIONS:
+- Voice NLU uses regex-based parsing for demo purposes.
+  Production would use Claude/GPT API for robust intent
+  extraction across any city or date format.
+- Listings are hardcoded mock data for 3 cities.
+  Production connects to Airbnb inventory API with real
+  availability and pricing.
+- Expense sync simulates Expensify integration.
+  Production uses Expensify OAuth + Reports API.
+- Calendar sync simulates Google Calendar.
+  Production uses Google Calendar API with OAuth.
+- Company card and $200 policy limit are hardcoded.
+  Production pulls from corporate admin dashboard
+  configured per company account.
+- Dates calculated relative to current system date.
+-->
