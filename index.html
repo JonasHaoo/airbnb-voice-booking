@@ -1,0 +1,1517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Airbnb for Work — Voice Booking</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #F0F0F0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px 0 40px;
+    }
+    #app {
+      width: 100%;
+      max-width: 390px;
+      min-height: 600px;
+      background: #FFFFFF;
+      border-radius: 24px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Progress bar */
+    .progress-bar {
+      height: 4px;
+      background: #F0F0F0;
+      display: flex;
+    }
+    .progress-bar .step {
+      flex: 1;
+      background: #E0E0E0;
+      transition: background 0.3s ease;
+    }
+    .progress-bar .step.active { background: #FF5A5F; }
+
+    /* Screens container */
+    .screens {
+      position: relative;
+      min-height: 500px;
+      overflow: hidden;
+    }
+    .screen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      min-height: 500px;
+      padding: 16px;
+      padding-bottom: 24px;
+      background: #FFFFFF;
+      transform: translateX(100%);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    .screen.active {
+      position: relative;
+      transform: translateX(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .screen.slide-out-left { transform: translateX(-100%); }
+    .screen.slide-in-right { transform: translateX(100%); }
+
+    /* Top bar */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0 8px;
+      margin-bottom: 8px;
+    }
+    .logo { font-size: 1.5rem; font-weight: 700; color: #FF5A5F; letter-spacing: -0.5px; }
+    .pill-badge {
+      background: #FF5A5F;
+      color: white;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .top-bar-right { display: flex; align-items: center; gap: 8px; }
+    .nav-icon-btn {
+      width: 36px; height: 36px;
+      border: none;
+      background: #F7F7F7;
+      border-radius: 50%;
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .nav-icon-btn:hover { background: #EEEEEE; }
+    .info-banner {
+      background: #E8F4FD;
+      color: #1a73e8;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      margin-bottom: 12px;
+    }
+    .mic-permission-banner {
+      background: #FFF3CD;
+      color: #856404;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      margin-bottom: 16px;
+      display: block;
+    }
+    .mic-permission-banner.hidden { display: none; }
+    .mic-file-warning {
+      background: #FFF3CD;
+      color: #856404;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      margin-bottom: 16px;
+      display: none;
+      line-height: 1.4;
+    }
+    .mic-file-warning code { background: rgba(0,0,0,0.08); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+    .mic-file-warning.show { display: block; }
+
+    /* Screen 1 — Voice Search */
+    .voice-heading { font-size: 1.5rem; color: #222222; margin-bottom: 4px; }
+    .voice-sub { font-size: 0.9rem; color: #717171; margin-bottom: 24px; }
+    .mic-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .mic-btn {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: #FF5A5F;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 2rem;
+      transition: transform 0.2s;
+      box-shadow: 0 4px 12px rgba(255,90,95,0.35);
+    }
+    .mic-btn:hover { transform: scale(1.05); }
+    .mic-btn.listening {
+      animation: pulse-ring 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse-ring {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,90,95,0.6); }
+      50% { box-shadow: 0 0 0 20px rgba(255,90,95,0); }
+    }
+    .mic-status { font-size: 0.85rem; color: #717171; margin-top: 8px; }
+    .transcript-box {
+      width: 100%;
+      min-height: 60px;
+      background: #F7F7F7;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 0.9rem;
+      color: #222222;
+      margin-bottom: 12px;
+      border: 1px solid #E0E0E0;
+      display: none;
+    }
+    .transcript-box.visible { display: block; }
+    .btn-search {
+      width: 100%;
+      padding: 14px;
+      background: #FF5A5F;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: none;
+      margin-bottom: 20px;
+    }
+    .btn-search.visible { display: block; }
+    .quick-label { font-size: 0.8rem; color: #717171; margin-bottom: 8px; }
+    .chips { display: flex; flex-direction: column; gap: 8px; }
+    .chip {
+      padding: 10px 14px;
+      border: 1px solid #DDDDDD;
+      border-radius: 24px;
+      background: #FFFFFF;
+      font-size: 0.85rem;
+      color: #222222;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .chip:hover { background: #F7F7F7; border-color: #FF5A5F; }
+    .voice-unsupported {
+      background: #FFF3CD;
+      color: #856404;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      margin-top: 12px;
+      display: none;
+    }
+    .voice-unsupported.show { display: block; }
+    .parsed-feedback {
+      background: #E8F5E9;
+      color: #2E7D32;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .parsed-feedback.show { display: block; }
+    .skeleton-loader {
+      display: none;
+      margin-top: 12px;
+    }
+    .skeleton-loader.show { display: block; }
+    .skeleton-card {
+      height: 100px;
+      background: linear-gradient(90deg, #E8E8E8 25%, #F0F0F0 50%, #E8E8E8 75%);
+      background-size: 200% 100%;
+      animation: skeleton-pulse 1.2s ease-in-out infinite;
+      border-radius: 12px;
+      margin-bottom: 10px;
+    }
+    @keyframes skeleton-pulse {
+      0%, 100% { background-position: 200% 0; }
+      50% { background-position: -200% 0; }
+    }
+
+    /* Screen 2 — Results */
+    .results-header { font-size: 1.25rem; color: #222222; margin-bottom: 4px; }
+    .results-sub { font-size: 0.85rem; color: #717171; margin-bottom: 12px; }
+    .hear-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: #F7F7F7;
+      border: 1px solid #DDDDDD;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      color: #222222;
+      cursor: pointer;
+      margin-bottom: 16px;
+    }
+    .hear-btn:hover { background: #EEEEEE; }
+    .listing-cards { display: flex; flex-direction: column; gap: 16px; }
+    .listing-card {
+      background: #F7F7F7;
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      border: 1px solid #EEEEEE;
+    }
+    .listing-name { font-weight: 700; font-size: 1rem; color: #222222; margin-bottom: 4px; }
+    .listing-meta { font-size: 0.8rem; color: #717171; margin-bottom: 6px; }
+    .superhost {
+      display: inline-block;
+      background: #008A05;
+      color: white;
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: 6px;
+    }
+    .listing-price { font-size: 1.25rem; font-weight: 700; color: #FF5A5F; margin: 8px 0; }
+    .listing-amenities {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .amenity-pill {
+      font-size: 0.75rem;
+      color: #717171;
+      background: #EEEEEE;
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+    .policy-ok { color: #008A05; font-size: 0.8rem; font-weight: 600; margin-bottom: 10px; }
+    .policy-warn { color: #C13515; font-size: 0.8rem; font-weight: 600; margin-bottom: 10px; }
+    .btn-book {
+      width: 100%;
+      padding: 12px;
+      background: #FF5A5F;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-book:hover { background: #E84A4F; }
+
+    /* Screen 3 — Confirm */
+    .confirm-header { font-size: 1.25rem; color: #222222; margin-bottom: 16px; }
+    .confirm-card {
+      background: #FFFFFF;
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      border: 1px solid #EEEEEE;
+      margin-bottom: 16px;
+    }
+    .confirm-name { font-size: 1.1rem; font-weight: 700; color: #222222; margin-bottom: 6px; }
+    .confirm-dates-row { font-size: 0.9rem; color: #717171; margin-bottom: 4px; }
+    .confirm-duration { font-size: 0.85rem; color: #717171; margin-bottom: 12px; }
+    .divider { height: 1px; background: #EEEEEE; margin: 12px 0; }
+    .price-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.9rem;
+      margin-bottom: 6px;
+      font-family: system-ui, monospace;
+    }
+    .price-row.total { font-weight: 700; font-size: 1rem; margin-top: 8px; }
+    .payment-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      color: #222222;
+      margin-bottom: 8px;
+    }
+    .policy-pill-green {
+      display: inline-block;
+      background: #E8F5E9;
+      color: #008A05;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .btn-confirm {
+      width: 100%;
+      padding: 14px;
+      background: #FF5A5F;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+    .btn-back {
+      width: 100%;
+      padding: 12px;
+      background: transparent;
+      color: #717171;
+      border: 2px solid #DDDDDD;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    .btn-back:hover { background: #F7F7F7; }
+
+    /* Screen 4 — Success */
+    .success-wrap { text-align: center; padding: 20px 0; }
+    .checkmark-wrap {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 20px;
+    }
+    .checkmark-wrap svg { width: 100%; height: 100%; }
+    .checkmark-circle {
+      fill: none;
+      stroke: #E8F5E9;
+      stroke-width: 3;
+    }
+    .checkmark-path {
+      fill: none;
+      stroke: #008A05;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 50;
+      stroke-dashoffset: 50;
+    }
+    .checkmark-wrap.animate .checkmark-path { animation: draw-check 0.6s ease forwards; }
+    @keyframes draw-check {
+      to { stroke-dashoffset: 0; }
+    }
+    .success-heading { font-size: 1.5rem; color: #222222; margin-bottom: 8px; }
+    .success-sub { font-size: 0.9rem; color: #717171; margin-bottom: 16px; }
+    .booking-pill {
+      background: #E8F5E9;
+      color: #2E7D32;
+      padding: 10px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      margin-bottom: 20px;
+      display: inline-block;
+    }
+    .action-buttons { display: flex; flex-direction: column; gap: 10px; }
+    .btn-action {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 2px solid #FF5A5F;
+      background: #FF5A5F;
+      color: white;
+    }
+    .btn-action.outline { background: transparent; color: #FF5A5F; }
+    .btn-action.gray { border-color: #DDDDDD; color: #717171; background: transparent; }
+    .btn-action.gray:hover { background: #F7F7F7; }
+
+    /* Modals */
+    .overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal {
+      background: #FFFFFF;
+      border-radius: 16px;
+      padding: 20px;
+      max-width: 340px;
+      width: 90%;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      transform: scale(0.95);
+      transition: transform 0.2s ease;
+    }
+    .overlay.show .modal { transform: scale(1); }
+    .modal-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 14px; color: #222222; }
+    .event-card {
+      background: #F7F7F7;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+      text-align: left;
+    }
+    .event-title { font-weight: 600; color: #222222; margin-bottom: 6px; }
+    .event-detail { font-size: 0.85rem; color: #717171; margin-bottom: 4px; }
+    .event-status { display: inline-block; background: #E8F5E9; color: #008A05; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; margin-top: 8px; }
+    .modal-close { width: 100%; padding: 12px; background: #F0F0F0; border: none; border-radius: 10px; font-size: 0.95rem; cursor: pointer; }
+
+    /* Bottom sheet */
+    .bottom-sheet {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: #FFFFFF;
+      border-radius: 20px 20px 0 0;
+      padding: 24px;
+      max-height: 80vh;
+      overflow-y: auto;
+      z-index: 100;
+      transform: translateY(100%);
+      transition: transform 0.25s ease;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
+    }
+    .bottom-sheet.show { transform: translateY(0); }
+    .sheet-backdrop {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.3);
+      z-index: 99;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .sheet-backdrop.show { opacity: 1; pointer-events: auto; }
+    .expensify-logo {
+      width: 48px; height: 48px;
+      background: #FF6B35;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 800;
+      font-size: 1.25rem;
+      margin-bottom: 4px;
+    }
+    .expensify-label { font-size: 1rem; font-weight: 700; color: #222222; margin-bottom: 12px; }
+    .sheet-heading { font-size: 1.1rem; font-weight: 700; color: #222222; margin-bottom: 16px; }
+    .sheet-table { width: 100%; font-size: 0.9rem; margin-bottom: 12px; }
+    .sheet-table td { padding: 6px 0; }
+    .sheet-table td:last-child { text-align: right; font-family: system-ui, monospace; }
+    .sheet-meta { font-size: 0.85rem; color: #717171; margin-bottom: 8px; }
+    .sheet-close { width: 100%; padding: 12px; background: #F0F0F0; border: none; border-radius: 10px; font-size: 0.95rem; cursor: pointer; margin-top: 12px; }
+
+    /* Dashboard (Screen 5) */
+    .dashboard-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 0 4px; margin-bottom: 4px; }
+    .nav-back-btn { background: none; border: none; font-size: 1.25rem; cursor: pointer; padding: 4px 8px; color: #222222; }
+    .top-bar-title { font-size: 1rem; font-weight: 600; color: #222222; }
+    .top-bar-spacer { width: 36px; }
+    .dashboard-title { font-size: 1.25rem; font-weight: 700; color: #222222; }
+    .dashboard-subtitle { font-size: 0.85rem; color: #717171; margin-bottom: 16px; }
+    .stats-row { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 16px; -webkit-overflow-scrolling: touch; }
+    .stat-tile {
+      flex: 0 0 100px;
+      background: #F7F7F7;
+      border-radius: 12px;
+      padding: 14px;
+      text-align: center;
+      border: 1px solid #EEEEEE;
+    }
+    .stat-value { display: block; font-size: 1.35rem; font-weight: 700; color: #FF5A5F; }
+    .stat-label { font-size: 0.75rem; color: #717171; }
+    .dashboard-tabs { display: flex; gap: 0; border-bottom: 1px solid #EEEEEE; margin-bottom: 16px; }
+    .dashboard-tab {
+      flex: 1;
+      padding: 10px 8px;
+      border: none;
+      background: none;
+      font-size: 0.85rem;
+      color: #717171;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .dashboard-tab.active { color: #FF5A5F; font-weight: 600; border-bottom-color: #FF5A5F; }
+    .tab-content { display: none; opacity: 0; transition: opacity 0.15s ease; }
+    .tab-content.active { display: block; opacity: 1; }
+    .trip-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      background: #F7F7F7;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+      border: 1px solid #EEEEEE;
+    }
+    .trip-card-initial {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 1rem;
+    }
+    .trip-card-initial.coral { background: #FF5A5F; }
+    .trip-card-initial.blue { background: #1a73e8; }
+    .trip-card-initial.green { background: #008A05; }
+    .trip-card-body { flex: 1; min-width: 0; }
+    .trip-card-name { font-weight: 700; font-size: 0.95rem; color: #222222; margin-bottom: 2px; }
+    .trip-card-meta { font-size: 0.8rem; color: #717171; margin-bottom: 6px; }
+    .trip-card-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; }
+    .trip-card-price { font-size: 1rem; font-weight: 700; color: #FF5A5F; }
+    .trip-card-status { font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; }
+    .trip-card-status.confirmed { background: #E8F5E9; color: #008A05; }
+    .trip-card-status.pending { background: #FFF8E1; color: #F57C00; }
+    .trip-card-status.expensed { background: #E8F5E9; color: #008A05; }
+    .trip-card-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .trip-card-actions button {
+      padding: 6px 10px;
+      border: 1px solid #DDDDDD;
+      background: #FFFFFF;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .trip-card-actions button:hover { background: #F7F7F7; }
+    .trip-card-reminder { margin-top: 10px; }
+    .btn-send-reminder { padding: 8px 14px; background: #FF5A5F; color: white; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+    .btn-send-reminder:hover { background: #E84A4F; }
+
+    /* Modify bottom sheet */
+    .modify-sheet-option { display: block; width: 100%; padding: 14px; text-align: left; border: none; background: #F7F7F7; border-radius: 10px; margin-bottom: 8px; font-size: 0.95rem; cursor: pointer; }
+    .modify-sheet-option:hover { background: #EEEEEE; }
+
+    /* Cancel confirmation dialog */
+    .confirm-dialog-actions { display: flex; gap: 10px; margin-top: 16px; }
+    .confirm-dialog-actions .btn-danger { background: #C13515; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; flex: 1; }
+    .confirm-dialog-actions .btn-secondary { background: #F0F0F0; color: #717171; border: none; padding: 12px 20px; border-radius: 10px; cursor: pointer; flex: 1; }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #222222;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      z-index: 200;
+      opacity: 0;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="progress-bar">
+      <div class="step" data-step="1"></div>
+      <div class="step" data-step="2"></div>
+      <div class="step" data-step="3"></div>
+      <div class="step" data-step="4"></div>
+      <div class="step" data-step="5"></div>
+    </div>
+    <div class="screens">
+      <!-- Screen 1 — Voice Search -->
+      <div class="screen active" id="screen1" data-screen="1">
+        <div class="top-bar">
+          <span class="logo">airbnb</span>
+          <div class="top-bar-right">
+            <span class="pill-badge">for Work</span>
+            <button type="button" class="nav-icon-btn" id="myTripsBtn1" title="My Trips">📋</button>
+          </div>
+        </div>
+        <div class="info-banner">🎤 Demo Mode: Tap the mic or use a preset search below. For voice input: open via Netlify/localhost, not file://</div>
+        <p class="mic-permission-banner" id="micPermissionBanner">⚠️ Allow microphone access when prompted by your browser</p>
+        <p class="mic-file-warning" id="micFileWarning">⚠️ Opened as file? Voice won’t work. Run in terminal: <code>npx serve .</code> then open <strong>http://localhost:3000</strong></p>
+        <h1 class="voice-heading">Where to next?</h1>
+        <p class="voice-sub">Book your stay hands-free</p>
+        <div class="mic-wrap">
+          <button type="button" class="mic-btn" id="micBtn" aria-label="Tap to speak">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </button>
+          <span class="mic-status" id="micStatus">Tap to speak</span>
+        </div>
+        <div class="transcript-box" id="transcriptBox"></div>
+        <div class="parsed-feedback" id="parsedFeedback"></div>
+        <div class="skeleton-loader" id="skeletonLoader">
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+        </div>
+        <button type="button" class="btn-search" id="btnSearch">Search</button>
+        <p class="voice-unsupported" id="voiceUnsupported">Voice input not supported in this browser. Please use the preset chips above.</p>
+        <p class="quick-label">Quick Search</p>
+        <div class="chips">
+          <button type="button" class="chip" data-preset="austin">📍 Austin · Mon–Thu · &lt;$200</button>
+          <button type="button" class="chip" data-preset="boston">📍 Boston · Tue–Fri · &lt;$180</button>
+          <button type="button" class="chip" data-preset="chicago">📍 Chicago · Wed–Sat · &lt;$220</button>
+        </div>
+      </div>
+
+      <!-- Screen 2 — Results -->
+      <div class="screen" id="screen2" data-screen="2">
+        <div class="top-bar">
+          <button type="button" class="nav-back-btn" id="backTo1">←</button>
+          <span class="top-bar-title">Results</span>
+          <button type="button" class="nav-icon-btn" id="myTripsBtn2" title="My Trips">📋</button>
+        </div>
+        <h2 class="results-header" id="resultsHeader">3 stays in Austin</h2>
+        <p class="results-sub" id="resultsSub">✓ Policy filters applied · Under $200/night</p>
+        <button type="button" class="hear-btn" id="hearOptions">▶ Hear Options</button>
+        <div class="listing-cards" id="listingCards"></div>
+      </div>
+
+      <!-- Screen 3 — Confirm -->
+      <div class="screen" id="screen3" data-screen="3">
+        <div class="top-bar">
+          <button type="button" class="nav-back-btn" id="backTo2">←</button>
+          <span class="top-bar-title">Confirm</span>
+          <button type="button" class="nav-icon-btn" id="myTripsBtn3" title="My Trips">📋</button>
+        </div>
+        <h2 class="confirm-header">Confirm Booking</h2>
+        <div class="confirm-card" id="confirmCard"></div>
+        <button type="button" class="btn-confirm" id="btnConfirm">Confirm Booking</button>
+        <button type="button" class="btn-back" id="btnBack">← Choose a different stay</button>
+      </div>
+
+      <!-- Screen 4 — Success -->
+      <div class="screen" id="screen4" data-screen="4">
+        <div class="top-bar">
+          <span class="top-bar-spacer"></span>
+          <span class="top-bar-title">Booked</span>
+          <button type="button" class="nav-icon-btn" id="myTripsBtn4" title="My Trips">📋</button>
+        </div>
+        <div class="success-wrap">
+          <div class="checkmark-wrap" id="checkmarkWrap">
+            <svg viewBox="0 0 80 80">
+              <circle class="checkmark-circle" cx="40" cy="40" r="36"/>
+              <path class="checkmark-path" d="M22 40 L34 52 L58 28"/>
+            </svg>
+          </div>
+          <h2 class="success-heading">You're booked! 🎉</h2>
+          <p class="success-sub">Confirmation sent to your work email</p>
+          <div class="booking-pill" id="bookingPill"></div>
+          <div class="action-buttons">
+            <button type="button" class="btn-action" id="addToCalendar">📅 Add to Calendar</button>
+            <button type="button" class="btn-action outline" id="pushExpense">📤 Push to Expense System</button>
+            <button type="button" class="btn-action gray" id="viewDashboard">📋 View in Dashboard</button>
+            <button type="button" class="btn-action gray" id="bookAnother">🏠 Book another trip</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Screen 5 — Trip Dashboard -->
+      <div class="screen" id="screen5" data-screen="5">
+        <div class="dashboard-header">
+          <button type="button" class="nav-back-btn" id="dashboardBack">←</button>
+          <h2 class="dashboard-title">My Trips</h2>
+          <span class="top-bar-spacer"></span>
+        </div>
+        <p class="dashboard-subtitle">Acme Corp · Travel Dashboard</p>
+        <div class="stats-row">
+          <div class="stat-tile"><span class="stat-value">3</span><span class="stat-label">Trips this month</span></div>
+          <div class="stat-tile"><span class="stat-value">$1,340</span><span class="stat-label">Total spend</span></div>
+          <div class="stat-tile"><span class="stat-value">100%</span><span class="stat-label">Policy compliant</span></div>
+        </div>
+        <div class="dashboard-tabs">
+          <button type="button" class="dashboard-tab active" data-tab="upcoming">Upcoming</button>
+          <button type="button" class="dashboard-tab" data-tab="past">Past</button>
+          <button type="button" class="dashboard-tab" data-tab="pending">Pending Approval</button>
+        </div>
+        <div class="tab-content active" id="tabUpcoming"></div>
+        <div class="tab-content" id="tabPast"></div>
+        <div class="tab-content" id="tabPending"></div>
+    </div>
+  </div>
+
+  <!-- Modal: Calendar -->
+  <div class="overlay" id="calendarOverlay">
+    <div class="modal">
+      <h3 class="modal-title">Trip added to calendar</h3>
+      <div class="event-card" id="eventCard"></div>
+      <button type="button" class="modal-close" id="calendarClose">Close</button>
+    </div>
+  </div>
+
+  <!-- Bottom sheet: Expense -->
+  <div class="sheet-backdrop" id="expenseBackdrop"></div>
+  <div class="bottom-sheet" id="expenseSheet">
+    <div class="expensify-logo">E</div>
+    <p class="expensify-label">Expensify</p>
+    <p class="sheet-heading">Expense Report Created</p>
+    <table class="sheet-table" id="expenseTable"></table>
+    <p class="sheet-meta" id="expenseCategory"></p>
+    <p class="sheet-meta" id="expenseReportId"></p>
+    <span class="event-status">✓ Submitted for manager approval</span>
+    <button type="button" class="sheet-close" id="expenseClose">Close</button>
+  </div>
+
+  <!-- Bottom sheet: Modify -->
+  <div class="sheet-backdrop" id="modifyBackdrop"></div>
+  <div class="bottom-sheet" id="modifySheet">
+    <p class="sheet-heading">Modify trip</p>
+    <button type="button" class="modify-sheet-option" id="modifyChangeDates">Change dates</button>
+    <button type="button" class="modify-sheet-option" id="modifyCancelBooking">Cancel booking</button>
+    <button type="button" class="sheet-close" id="modifyClose">Close</button>
+  </div>
+
+  <!-- Cancel confirmation dialog -->
+  <div class="overlay" id="cancelConfirmOverlay">
+    <div class="modal">
+      <h3 class="modal-title">Cancel this trip?</h3>
+      <p class="event-detail">Cancellation fee may apply.</p>
+      <div class="confirm-dialog-actions">
+        <button type="button" class="btn-danger" id="cancelConfirmYes">Yes, Cancel</button>
+        <button type="button" class="btn-secondary" id="cancelConfirmKeep">Keep Booking</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  </div><!-- #app -->
+
+  <script>
+(function() {
+  'use strict';
+
+  // ─── State ─────────────────────────────────────────────────────────────
+  var currentScreen = 1;
+  var previousScreenBeforeDashboard = 1;
+  var selectedListing = null;
+  var parsedCity = 'Austin';
+  var parsedNear = 'city center';
+  var parsedPrice = 200;
+  var parsedDates = { checkIn: null, checkOut: null };
+  var transcript = '';
+  var micPermissionBannerHidden = false;
+  var modifySheetTrip = null;
+  var cancelConfirmTrip = null;
+
+  var CITIES = ['Austin', 'Boston', 'Chicago', 'New York', 'Seattle', 'San Francisco'];
+  var DAY_NAMES = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+
+  var LISTINGS = {
+    Austin: [
+      { name: 'The Austin Suite', price: 185, distance: '0.3mi', superhost: true, amenities: 'WiFi ✓ Workspace ✓', rating: 4.92, anchor: 'convention center' },
+      { name: 'Downtown Loft', price: 160, distance: '0.5mi', superhost: true, amenities: 'WiFi ✓ Standing desk ✓', rating: 4.88, anchor: 'convention center' },
+      { name: 'South Congress Studio', price: 145, distance: '1.2mi', superhost: false, amenities: 'WiFi ✓ Work desk ✓', rating: 4.81, anchor: 'convention center' }
+    ],
+    Boston: [
+      { name: 'Back Bay Apartment', price: 175, distance: '0.2mi', superhost: true, amenities: 'WiFi ✓ Workspace ✓', rating: 4.95, anchor: 'Copley Square' },
+      { name: 'Beacon Hill Studio', price: 155, distance: '0.6mi', superhost: false, amenities: 'WiFi ✓ Desk ✓', rating: 4.87, anchor: 'Copley Square' },
+      { name: 'South End Loft', price: 140, distance: '1.0mi', superhost: false, amenities: 'WiFi ✓ Work area ✓', rating: 4.79, anchor: 'Copley Square' }
+    ],
+    Chicago: [
+      { name: 'River North Suite', price: 210, distance: '0.4mi', superhost: true, amenities: 'WiFi ✓ Office desk ✓', rating: 4.93, anchor: 'Merchandise Mart' },
+      { name: 'Loop Studio', price: 195, distance: '0.1mi', superhost: true, amenities: 'WiFi ✓ Workspace ✓', rating: 4.90, anchor: 'Merchandise Mart' },
+      { name: 'West Loop Flat', price: 180, distance: '0.8mi', superhost: false, amenities: 'WiFi ✓ Desk ✓', rating: 4.83, anchor: 'Merchandise Mart' }
+    ]
+  };
+
+  var PRESETS = {
+    austin: 'Find me a place in Austin near the convention center, check-in Monday, check-out Thursday, under $200 a night',
+    boston: 'Find me a place in Boston near Copley Square, check-in Tuesday, check-out Friday, under $180 a night',
+    chicago: 'Find me a place in Chicago near Merchandise Mart, check-in Wednesday, check-out Saturday, under $220 a night'
+  };
+
+  // ─── DOM refs ──────────────────────────────────────────────────────────
+  var el = {
+    screen1: document.getElementById('screen1'),
+    screen2: document.getElementById('screen2'),
+    screen3: document.getElementById('screen3'),
+    screen4: document.getElementById('screen4'),
+    screen5: document.getElementById('screen5'),
+    transcriptBox: document.getElementById('transcriptBox'),
+    parsedFeedback: document.getElementById('parsedFeedback'),
+    skeletonLoader: document.getElementById('skeletonLoader'),
+    btnSearch: document.getElementById('btnSearch'),
+    micBtn: document.getElementById('micBtn'),
+    micStatus: document.getElementById('micStatus'),
+    voiceUnsupported: document.getElementById('voiceUnsupported'),
+    micPermissionBanner: document.getElementById('micPermissionBanner'),
+    micFileWarning: document.getElementById('micFileWarning'),
+    resultsHeader: document.getElementById('resultsHeader'),
+    resultsSub: document.getElementById('resultsSub'),
+    listingCards: document.getElementById('listingCards'),
+    hearOptions: document.getElementById('hearOptions'),
+    confirmCard: document.getElementById('confirmCard'),
+    btnConfirm: document.getElementById('btnConfirm'),
+    btnBack: document.getElementById('btnBack'),
+    checkmarkWrap: document.getElementById('checkmarkWrap'),
+    bookingPill: document.getElementById('bookingPill'),
+    addToCalendar: document.getElementById('addToCalendar'),
+    pushExpense: document.getElementById('pushExpense'),
+    bookAnother: document.getElementById('bookAnother'),
+    viewDashboard: document.getElementById('viewDashboard'),
+    calendarOverlay: document.getElementById('calendarOverlay'),
+    eventCard: document.getElementById('eventCard'),
+    calendarClose: document.getElementById('calendarClose'),
+    expenseBackdrop: document.getElementById('expenseBackdrop'),
+    expenseSheet: document.getElementById('expenseSheet'),
+    expenseTable: document.getElementById('expenseTable'),
+    expenseCategory: document.getElementById('expenseCategory'),
+    expenseReportId: document.getElementById('expenseReportId'),
+    expenseClose: document.getElementById('expenseClose'),
+    modifyBackdrop: document.getElementById('modifyBackdrop'),
+    modifySheet: document.getElementById('modifySheet'),
+    modifyChangeDates: document.getElementById('modifyChangeDates'),
+    modifyCancelBooking: document.getElementById('modifyCancelBooking'),
+    modifyClose: document.getElementById('modifyClose'),
+    cancelConfirmOverlay: document.getElementById('cancelConfirmOverlay'),
+    cancelConfirmYes: document.getElementById('cancelConfirmYes'),
+    cancelConfirmKeep: document.getElementById('cancelConfirmKeep'),
+    toast: document.getElementById('toast'),
+    dashboardBack: document.getElementById('dashboardBack'),
+    backTo1: document.getElementById('backTo1'),
+    backTo2: document.getElementById('backTo2'),
+    tabUpcoming: document.getElementById('tabUpcoming'),
+    tabPast: document.getElementById('tabPast'),
+    tabPending: document.getElementById('tabPending')
+  };
+
+  // ─── Helpers ───────────────────────────────────────────────────────────
+  function goToScreen(n) {
+    var screens = [el.screen1, el.screen2, el.screen3, el.screen4, el.screen5];
+    currentScreen = n;
+    screens.forEach(function(s, i) {
+      s.classList.remove('active', 'slide-out-left', 'slide-in-right');
+      if (i + 1 === n) s.classList.add('active');
+    });
+    document.querySelectorAll('.progress-bar .step').forEach(function(step, i) {
+      step.classList.toggle('active', i < n);
+    });
+    if (n === 5) renderDashboardTabs();
+  }
+
+  function formatDate(d) {
+    var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return days[d.getDay()] + ', ' + months[d.getMonth()] + ' ' + d.getDate();
+  }
+
+  function nextDayNamed(dayName) {
+    var target = DAY_NAMES.indexOf(dayName.toLowerCase());
+    if (target === -1) return null;
+    var today = new Date();
+    var d = new Date(today);
+    var cur = d.getDay();
+    var diff = (target + 7 - cur) % 7;
+    if (diff === 0) diff = 7;
+    d.setDate(d.getDate() + diff);
+    return d;
+  }
+
+  function parseTranscript(text) {
+    var city = 'Austin';
+    CITIES.forEach(function(c) {
+      if (text.indexOf(c) !== -1) city = c;
+    });
+    var price = 200;
+    var priceMatch = text.match(/\$(\d+)|under\s*\$\s*(\d+)|below\s*\$\s*(\d+)|under\s+(\d+)/i);
+    if (priceMatch) {
+      var p = parseInt(priceMatch[1] || priceMatch[2] || priceMatch[3] || priceMatch[4], 10);
+      if (p > 0) price = p;
+    }
+    var near = 'city center';
+    var nearMatch = text.match(/near\s+([^.?!,]+?)(?:\s+check|\s*$|\.|,)/i) || text.match(/near\s+(.+?)(?:\s+check|\s*$)/i);
+    if (nearMatch && nearMatch[1]) near = nearMatch[1].trim();
+    var checkIn = null, checkOut = null;
+    var days = text.match(/(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)/gi);
+    if (days && days.length >= 2) {
+      checkIn = nextDayNamed(days[0]);
+      checkOut = nextDayNamed(days[1]);
+    } else if (days && days.length === 1) {
+      checkIn = nextDayNamed(days[0]);
+      if (checkIn) {
+        checkOut = new Date(checkIn);
+        checkOut.setDate(checkOut.getDate() + 3);
+      }
+    }
+    if (!checkIn) {
+      var t = new Date();
+      checkIn = new Date(t);
+      checkIn.setDate(checkIn.getDate() + 1);
+      checkOut = new Date(checkIn);
+      checkOut.setDate(checkOut.getDate() + 3);
+    }
+    if (!checkOut && checkIn) {
+      checkOut = new Date(checkIn);
+      checkOut.setDate(checkOut.getDate() + 3);
+    }
+    return { city: city, price: price, near: near, checkIn: checkIn, checkOut: checkOut };
+  }
+
+  function runSearch() {
+    if (!transcript.trim()) return;
+    var p = parseTranscript(transcript);
+    parsedCity = p.city;
+    parsedPrice = p.price;
+    parsedNear = p.near;
+    parsedDates.checkIn = p.checkIn;
+    parsedDates.checkOut = p.checkOut;
+
+    el.parsedFeedback.textContent = 'Got it — searching ' + parsedCity + ' · ' + formatDate(parsedDates.checkIn) + '–' + formatDate(parsedDates.checkOut) + ' · <$' + parsedPrice + '/night...';
+    el.parsedFeedback.classList.add('show');
+    el.skeletonLoader.classList.add('show');
+    el.btnSearch.classList.remove('visible');
+
+    setTimeout(function() {
+      el.parsedFeedback.classList.remove('show');
+      el.skeletonLoader.classList.remove('show');
+      renderResults();
+      goToScreen(2);
+    }, 1500);
+  }
+
+  function renderResults() {
+    var list = LISTINGS[parsedCity] || LISTINGS.Austin;
+    var anchor = (list[0] && list[0].anchor) ? list[0].anchor : 'city center';
+    el.resultsHeader.textContent = list.length + ' stays in ' + parsedCity;
+    el.resultsSub.textContent = '✓ Policy filters applied · Under $' + parsedPrice + '/night';
+    el.listingCards.innerHTML = '';
+    list.forEach(function(item, idx) {
+      var withinPolicy = item.price <= parsedPrice;
+      var card = document.createElement('div');
+      card.className = 'listing-card';
+      card.innerHTML =
+        '<div class="listing-name">' + item.name + (item.superhost ? '<span class="superhost">Superhost</span>' : '') + '</div>' +
+        '<div class="listing-meta">⭐ ' + item.rating + '</div>' +
+        '<div class="listing-price">$' + item.price + '/night</div>' +
+        '<div class="listing-meta">' + item.distance + ' from ' + anchor + '</div>' +
+        '<div class="listing-amenities"><span class="amenity-pill">' + item.amenities + '</span></div>' +
+        (withinPolicy ? '<div class="policy-ok">✓ Within policy</div>' : '<div class="policy-warn">⚠ Above policy</div>') +
+        '<button type="button" class="btn-book" data-idx="' + idx + '">Book</button>';
+      el.listingCards.appendChild(card);
+      card.querySelector('.btn-book').addEventListener('click', function() {
+        selectedListing = list[idx];
+        renderConfirm();
+        goToScreen(3);
+      });
+    });
+  }
+
+  function renderConfirm() {
+    if (!selectedListing || !parsedDates.checkIn || !parsedDates.checkOut) return;
+    var nights = Math.round((parsedDates.checkOut - parsedDates.checkIn) / (24 * 60 * 60 * 1000));
+    var subtotal = selectedListing.price * nights;
+    var total = subtotal + 45;
+    el.confirmCard.innerHTML =
+      '<div class="confirm-name">' + selectedListing.name + '</div>' +
+      '<div class="listing-meta">⭐ ' + selectedListing.rating + '</div>' +
+      '<div class="confirm-dates-row">Check-in: ' + formatDate(parsedDates.checkIn) + '</div>' +
+      '<div class="confirm-dates-row">Check-out: ' + formatDate(parsedDates.checkOut) + '</div>' +
+      '<div class="confirm-duration">' + nights + ' nights</div>' +
+      '<div class="divider"></div>' +
+      '<div class="price-row">$' + selectedListing.price + ' × ' + nights + ' nights ......... $' + subtotal + '</div>' +
+      '<div class="price-row">Cleaning fee ...................... $45</div>' +
+      '<div class="price-row total">Total ............................. $' + total + '</div>' +
+      '<div class="divider"></div>' +
+      '<div class="payment-row">💼 Company Card ···· 4242</div>' +
+      '<span class="policy-pill-green">✓ Within travel policy</span>';
+  }
+
+  function speakResults() {
+    var list = LISTINGS[parsedCity] || LISTINGS.Austin;
+    var anchor = (list[0] && list[0].anchor) ? list[0].anchor : 'city center';
+    var msg = 'Here are your ' + list.length + ' policy-compliant stays in ' + parsedCity + '. ';
+    list.forEach(function(item, i) {
+      msg += 'Option ' + (i + 1) + ': ' + item.name + ', ' + item.price + ' dollars per night, ' + item.distance + ' from ' + anchor + ', ' + (item.superhost ? 'Superhost, ' : '') + item.amenities + '. ';
+    });
+    msg += 'Tap a card to book.';
+    var u = new SpeechSynthesisUtterance(msg);
+    u.rate = 0.95;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }
+
+  function showToast(message) {
+    el.toast.textContent = message;
+    el.toast.classList.add('show');
+    setTimeout(function() { el.toast.classList.remove('show'); }, 3000);
+  }
+
+  function openCalendarForTrip(trip) {
+    var city = trip.city;
+    var name = trip.name;
+    var checkIn = trip.checkIn;
+    var checkOut = trip.checkOut;
+    var dateStr = formatDate(checkIn) + ' – ' + formatDate(checkOut);
+    el.eventCard.innerHTML =
+      '<div class="event-title">' + city + ' Trip · ' + name + '</div>' +
+      '<div class="event-detail">Date: ' + dateStr + '</div>' +
+      '<div class="event-detail">Location: 123 Main St, ' + city + '</div>' +
+      '<span class="event-status">✓ Added to Google Calendar</span>';
+    el.calendarOverlay.classList.add('show');
+  }
+
+  function openExpenseForTrip(trip) {
+    var nights = Math.round((trip.checkOut - trip.checkIn) / (24 * 60 * 60 * 1000));
+    var subtotal = trip.price * nights;
+    var total = subtotal + 45;
+    el.expenseTable.innerHTML =
+      '<tr><td>Accommodation (' + nights + ' nights)</td><td>$' + subtotal + '</td></tr>' +
+      '<tr><td>Cleaning fee</td><td>$45</td></tr>' +
+      '<tr><td>Total</td><td>$' + total + '</td></tr>';
+    el.expenseCategory.textContent = 'Category: Business Travel – Accommodation';
+    el.expenseReportId.textContent = 'Report #: EXP-2026-' + Math.floor(1000 + Math.random() * 9000);
+    el.expenseSheet.classList.add('show');
+    el.expenseBackdrop.classList.add('show');
+  }
+
+  var DASHBOARD_UPCOMING = [
+    { id: 'session', name: null, city: null, checkIn: null, checkOut: null, price: null, status: 'confirmed' },
+    { id: '2', name: 'Beacon Hill Studio', city: 'Boston', checkIn: new Date(2026, 3, 7), checkOut: new Date(2026, 3, 10), price: 155, total: 510, status: 'confirmed' },
+    { id: '3', name: 'River North Suite', city: 'Chicago', checkIn: new Date(2026, 3, 22), checkOut: new Date(2026, 3, 24), price: 210, total: 435, status: 'pending' }
+  ];
+  var DASHBOARD_PAST = [
+    { name: 'Downtown Loft', city: 'Austin', checkIn: new Date(2026, 1, 10), checkOut: new Date(2026, 1, 13), total: 525, status: 'expensed' },
+    { name: 'Back Bay Apartment', city: 'Boston', checkIn: new Date(2026, 0, 28), checkOut: new Date(2026, 0, 30), total: 395, status: 'expensed' }
+  ];
+  var DASHBOARD_PENDING = [
+    { name: 'South Congress Studio', city: 'Austin', checkIn: new Date(2026, 2, 25), checkOut: new Date(2026, 2, 27), total: 335, status: 'pending_approval' }
+  ];
+
+  function cityInitialColor(city) {
+    if (!city) return 'coral';
+    var c = city.charAt(0).toUpperCase();
+    if (c === 'A') return 'coral';
+    if (c === 'B') return 'blue';
+    if (c === 'C') return 'green';
+    return 'coral';
+  }
+
+  function formatDateShort(d) {
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[d.getMonth()] + ' ' + d.getDate();
+  }
+
+  function renderDashboardTabs() {
+    var upcoming = [];
+    if (selectedListing && parsedDates.checkIn && parsedDates.checkOut) {
+      var nights = Math.round((parsedDates.checkOut - parsedDates.checkIn) / (24 * 60 * 60 * 1000));
+      upcoming.push({
+        id: 'session',
+        name: selectedListing.name,
+        city: parsedCity,
+        checkIn: parsedDates.checkIn,
+        checkOut: parsedDates.checkOut,
+        price: selectedListing.price,
+        total: selectedListing.price * nights + 45,
+        status: 'confirmed'
+      });
+    }
+    DASHBOARD_UPCOMING.forEach(function(t) {
+      if (t.id === 'session') return;
+      upcoming.push({
+        id: t.id,
+        name: t.name,
+        city: t.city,
+        checkIn: t.checkIn,
+        checkOut: t.checkOut,
+        price: t.price,
+        total: t.total,
+        status: t.status
+      });
+    });
+
+    el.tabUpcoming.innerHTML = '';
+    upcoming.forEach(function(trip) {
+      var initial = (trip.city && trip.city.charAt(0)) || 'A';
+      var colorClass = cityInitialColor(trip.city);
+      var dateStr = formatDateShort(trip.checkIn) + ' – ' + formatDateShort(trip.checkOut);
+      var statusClass = trip.status === 'confirmed' ? 'confirmed' : 'pending';
+      var statusText = trip.status === 'confirmed' ? '✓ Confirmed' : '⏳ Pending';
+      var card = document.createElement('div');
+      card.className = 'trip-card';
+      card.innerHTML =
+        '<div class="trip-card-initial ' + colorClass + '">' + initial + '</div>' +
+        '<div class="trip-card-body">' +
+          '<div class="trip-card-name">' + trip.name + '</div>' +
+          '<div class="trip-card-meta">' + trip.city + ' · ' + dateStr + '</div>' +
+          '<div class="trip-card-row">' +
+            '<span class="trip-card-price">$' + trip.total + '</span>' +
+            '<span class="trip-card-status ' + statusClass + '">' + statusText + '</span>' +
+          '</div>' +
+          '<div class="trip-card-actions">' +
+            '<button type="button" class="btn-calendar" data-trip="upcoming-' + (trip.id || trip.name) + '">📅 Calendar</button>' +
+            '<button type="button" class="btn-expense" data-trip="upcoming-' + (trip.id || trip.name) + '">📤 Expense</button>' +
+            '<button type="button" class="btn-modify" data-trip="upcoming-' + (trip.id || trip.name) + '">✏️ Modify</button>' +
+          '</div>' +
+        '</div>';
+      el.tabUpcoming.appendChild(card);
+      var data = { name: trip.name, city: trip.city, checkIn: trip.checkIn, checkOut: trip.checkOut, price: trip.price, total: trip.total };
+      card.querySelector('.btn-calendar').addEventListener('click', function() { openCalendarForTrip(data); });
+      card.querySelector('.btn-expense').addEventListener('click', function() { openExpenseForTrip(data); });
+      card.querySelector('.btn-modify').addEventListener('click', function() {
+        modifySheetTrip = data;
+        el.modifySheet.classList.add('show');
+        el.modifyBackdrop.classList.add('show');
+      });
+    });
+
+    el.tabPast.innerHTML = '';
+    DASHBOARD_PAST.forEach(function(trip) {
+      var initial = trip.city.charAt(0);
+      var colorClass = cityInitialColor(trip.city);
+      var dateStr = formatDateShort(trip.checkIn) + ' – ' + formatDateShort(trip.checkOut);
+      var card = document.createElement('div');
+      card.className = 'trip-card';
+      card.innerHTML =
+        '<div class="trip-card-initial ' + colorClass + '">' + initial + '</div>' +
+        '<div class="trip-card-body">' +
+          '<div class="trip-card-name">' + trip.name + '</div>' +
+          '<div class="trip-card-meta">' + trip.city + ' · ' + dateStr + '</div>' +
+          '<div class="trip-card-row">' +
+            '<span class="trip-card-price">$' + trip.total + '</span>' +
+            '<span class="trip-card-status expensed">✓ Expensed</span>' +
+          '</div>' +
+          '<div class="trip-card-actions">' +
+            '<button type="button" class="btn-calendar-past">📅 Calendar</button>' +
+            '<button type="button" class="btn-expense-past">📤 Expense</button>' +
+          '</div>' +
+        '</div>';
+      el.tabPast.appendChild(card);
+      var data = { name: trip.name, city: trip.city, checkIn: trip.checkIn, checkOut: trip.checkOut, price: Math.round(trip.total / 3), total: trip.total };
+      card.querySelector('.btn-calendar-past').addEventListener('click', function() { openCalendarForTrip(data); });
+      card.querySelector('.btn-expense-past').addEventListener('click', function() { openExpenseForTrip(data); });
+    });
+
+    el.tabPending.innerHTML = '';
+    DASHBOARD_PENDING.forEach(function(trip) {
+      var initial = trip.city.charAt(0);
+      var colorClass = cityInitialColor(trip.city);
+      var dateStr = formatDateShort(trip.checkIn) + ' – ' + formatDateShort(trip.checkOut);
+      var card = document.createElement('div');
+      card.className = 'trip-card';
+      card.innerHTML =
+        '<div class="trip-card-initial ' + colorClass + '">' + initial + '</div>' +
+        '<div class="trip-card-body">' +
+          '<div class="trip-card-name">' + trip.name + '</div>' +
+          '<div class="trip-card-meta">' + trip.city + ' · ' + dateStr + '</div>' +
+          '<div class="trip-card-row">' +
+            '<span class="trip-card-price">$' + trip.total + '</span>' +
+            '<span class="trip-card-status pending">⏳ Awaiting manager approval</span>' +
+          '</div>' +
+          '<div class="trip-card-reminder"><button type="button" class="btn-send-reminder">Send Reminder</button></div>' +
+        '</div>';
+      el.tabPending.appendChild(card);
+    });
+  }
+
+  // ─── Voice (Web Speech API) ─────────────────────────────────────────────
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var silenceTimeoutId = null;
+  var noSpeechRetryCount = 0;
+  var MAX_NO_SPEECH_RETRIES = 4;
+  var LISTENING_SILENCE_MS = 4000;
+  var LISTENING_MAX_MS = 12000;
+  var RESTART_DELAY_MS = 350;
+
+  if (SpeechRecognition) {
+    var recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    recognition.maxAlternatives = 1;
+
+    function clearSilenceTimeout() {
+      if (silenceTimeoutId) {
+        clearTimeout(silenceTimeoutId);
+        silenceTimeoutId = null;
+      }
+    }
+
+    function startListening() {
+      clearSilenceTimeout();
+      try {
+        recognition.start();
+        el.micBtn.classList.add('listening');
+        el.micStatus.textContent = 'Listening... Speak now';
+        silenceTimeoutId = setTimeout(function() {
+          silenceTimeoutId = null;
+          recognition.stop();
+        }, LISTENING_MAX_MS);
+      } catch (err) {
+        el.micStatus.textContent = 'Could not start. Try again.';
+      }
+    }
+
+    el.micBtn.addEventListener('click', function() {
+      if (el.micBtn.classList.contains('listening')) {
+        clearSilenceTimeout();
+        noSpeechRetryCount = MAX_NO_SPEECH_RETRIES;
+        recognition.stop();
+        return;
+      }
+      if (!micPermissionBannerHidden) {
+        micPermissionBannerHidden = true;
+        el.micPermissionBanner.classList.add('hidden');
+      }
+      transcript = '';
+      noSpeechRetryCount = 0;
+      el.transcriptBox.textContent = '';
+      el.transcriptBox.classList.remove('visible');
+      el.btnSearch.classList.remove('visible');
+      startListening();
+    });
+
+    recognition.onresult = function(event) {
+      var interim = '';
+      for (var i = event.resultIndex; i < event.results.length; i++) {
+        var r = event.results[i];
+        var text = r[0].transcript;
+        if (r.isFinal) {
+          transcript += text;
+          noSpeechRetryCount = 0;
+          clearSilenceTimeout();
+          silenceTimeoutId = setTimeout(function() {
+            silenceTimeoutId = null;
+            recognition.stop();
+          }, LISTENING_SILENCE_MS);
+        } else {
+          interim = text;
+        }
+      }
+      var display = transcript + interim;
+      el.transcriptBox.textContent = display;
+      if (display) {
+        el.transcriptBox.classList.add('visible');
+        el.btnSearch.classList.add('visible');
+        el.micStatus.textContent = 'Tap Search when ready, or keep speaking';
+      }
+    };
+
+    recognition.onerror = function(event) {
+      clearSilenceTimeout();
+      if (event.error === 'no-speech') {
+        return;
+      }
+      noSpeechRetryCount = MAX_NO_SPEECH_RETRIES;
+      el.micBtn.classList.remove('listening');
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        el.micStatus.textContent = 'Microphone blocked. Click the lock icon → Site settings → Microphone → Allow.';
+      } else {
+        el.micStatus.textContent = 'Mic error: ' + event.error + '. Use preset chips below.';
+      }
+    };
+
+    recognition.onend = function() {
+      clearSilenceTimeout();
+      if (el.transcriptBox.textContent) {
+        el.micBtn.classList.remove('listening');
+        el.micStatus.textContent = 'Tap Search when ready';
+        return;
+      }
+      if (noSpeechRetryCount < MAX_NO_SPEECH_RETRIES) {
+        noSpeechRetryCount += 1;
+        el.micStatus.textContent = 'Listening... Speak now (' + noSpeechRetryCount + '/' + MAX_NO_SPEECH_RETRIES + ')';
+        setTimeout(function() {
+          if (el.micBtn.classList.contains('listening')) {
+            try {
+              recognition.start();
+              silenceTimeoutId = setTimeout(function() {
+                silenceTimeoutId = null;
+                recognition.stop();
+              }, LISTENING_MAX_MS);
+            } catch (e) {}
+          }
+        }, RESTART_DELAY_MS);
+        return;
+      }
+      el.micBtn.classList.remove('listening');
+      if (window.location.protocol === 'file:') {
+        el.micStatus.textContent = 'Voice needs localhost. Run: npx serve . then open http://localhost:3000';
+      } else {
+        el.micStatus.textContent = 'Nothing heard. Tap the mic again or use preset chips.';
+      }
+    };
+  } else {
+    el.micBtn.disabled = true;
+    el.micStatus.textContent = 'Voice not supported in Chrome? Try allowing mic access in browser settings. Use preset chips below.';
+    el.voiceUnsupported.classList.add('show');
+  }
+
+  el.btnSearch.addEventListener('click', runSearch);
+
+  document.querySelectorAll('.chip').forEach(function(chip) {
+    chip.addEventListener('click', function() {
+      var key = chip.getAttribute('data-preset');
+      transcript = PRESETS[key] || '';
+      el.transcriptBox.textContent = transcript;
+      el.transcriptBox.classList.add('visible');
+      el.btnSearch.classList.add('visible');
+      el.voiceUnsupported.classList.remove('show');
+    });
+  });
+
+  el.hearOptions.addEventListener('click', speakResults);
+
+  el.btnConfirm.addEventListener('click', function() {
+    goToScreen(4);
+    el.checkmarkWrap.classList.remove('animate');
+    el.bookingPill.textContent = selectedListing.name + ' · ' + parsedCity + ' · ' + formatDate(parsedDates.checkIn) + '–' + formatDate(parsedDates.checkOut);
+    requestAnimationFrame(function() { el.checkmarkWrap.classList.add('animate'); });
+  });
+
+  el.btnBack.addEventListener('click', function() { goToScreen(2); });
+
+  el.addToCalendar.addEventListener('click', function() {
+    var title = parsedCity + ' Trip · ' + selectedListing.name;
+    var dateStr = formatDate(parsedDates.checkIn) + ' – ' + formatDate(parsedDates.checkOut);
+    el.eventCard.innerHTML =
+      '<div class="event-title">' + title + '</div>' +
+      '<div class="event-detail">Date: ' + dateStr + '</div>' +
+      '<div class="event-detail">Location: 123 Main St, ' + parsedCity + '</div>' +
+      '<span class="event-status">✓ Added to Google Calendar</span>';
+    el.calendarOverlay.classList.add('show');
+  });
+  el.calendarClose.addEventListener('click', function() { el.calendarOverlay.classList.remove('show'); });
+  el.calendarOverlay.addEventListener('click', function(e) { if (e.target === el.calendarOverlay) el.calendarOverlay.classList.remove('show'); });
+
+  el.pushExpense.addEventListener('click', function() {
+    var nights = Math.round((parsedDates.checkOut - parsedDates.checkIn) / (24 * 60 * 60 * 1000));
+    var subtotal = selectedListing.price * nights;
+    var total = subtotal + 45;
+    el.expenseTable.innerHTML =
+      '<tr><td>Accommodation (' + nights + ' nights)</td><td>$' + subtotal + '</td></tr>' +
+      '<tr><td>Cleaning fee</td><td>$45</td></tr>' +
+      '<tr><td>Total</td><td>$' + total + '</td></tr>';
+    el.expenseCategory.textContent = 'Category: Business Travel – Accommodation';
+    el.expenseReportId.textContent = 'Report #: EXP-2026-' + Math.floor(1000 + Math.random() * 9000);
+    el.expenseSheet.classList.add('show');
+    el.expenseBackdrop.classList.add('show');
+  });
+  el.expenseClose.addEventListener('click', function() {
+    el.expenseSheet.classList.remove('show');
+    el.expenseBackdrop.classList.remove('show');
+  });
+  el.expenseBackdrop.addEventListener('click', function() {
+    el.expenseSheet.classList.remove('show');
+    el.expenseBackdrop.classList.remove('show');
+  });
+
+  el.bookAnother.addEventListener('click', function() {
+    selectedListing = null;
+    parsedCity = 'Austin';
+    parsedNear = 'city center';
+    parsedPrice = 200;
+    parsedDates = { checkIn: null, checkOut: null };
+    transcript = '';
+    el.transcriptBox.textContent = '';
+    el.transcriptBox.classList.remove('visible');
+    el.btnSearch.classList.remove('visible');
+    el.parsedFeedback.classList.remove('show');
+    el.voiceUnsupported.classList.remove('show');
+    goToScreen(1);
+  });
+
+  el.viewDashboard.addEventListener('click', function() {
+    previousScreenBeforeDashboard = 4;
+    goToScreen(5);
+  });
+
+  function openMyTrips() {
+    previousScreenBeforeDashboard = currentScreen;
+    goToScreen(5);
+  }
+  el.myTripsBtn1.addEventListener('click', openMyTrips);
+  el.myTripsBtn2.addEventListener('click', openMyTrips);
+  el.myTripsBtn3.addEventListener('click', openMyTrips);
+  el.myTripsBtn4.addEventListener('click', openMyTrips);
+
+  el.dashboardBack.addEventListener('click', function() {
+    goToScreen(previousScreenBeforeDashboard);
+  });
+  el.backTo1.addEventListener('click', function() { goToScreen(1); });
+  el.backTo2.addEventListener('click', function() { goToScreen(2); });
+
+  document.querySelectorAll('.dashboard-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      var t = tab.getAttribute('data-tab');
+      document.querySelectorAll('.dashboard-tab').forEach(function(x) { x.classList.remove('active'); });
+      tab.classList.add('active');
+      el.tabUpcoming.classList.remove('active');
+      el.tabPast.classList.remove('active');
+      el.tabPending.classList.remove('active');
+      if (t === 'upcoming') el.tabUpcoming.classList.add('active');
+      else if (t === 'past') el.tabPast.classList.add('active');
+      else el.tabPending.classList.add('active');
+    });
+  });
+
+  el.modifyChangeDates.addEventListener('click', function() {
+    el.modifySheet.classList.remove('show');
+    el.modifyBackdrop.classList.remove('show');
+    showToast('Date changes require host approval. Request sent.');
+  });
+  el.modifyCancelBooking.addEventListener('click', function() {
+    cancelConfirmTrip = modifySheetTrip;
+    el.modifySheet.classList.remove('show');
+    el.modifyBackdrop.classList.remove('show');
+    el.cancelConfirmOverlay.classList.add('show');
+  });
+  el.modifyClose.addEventListener('click', function() {
+    el.modifySheet.classList.remove('show');
+    el.modifyBackdrop.classList.remove('show');
+  });
+  el.modifyBackdrop.addEventListener('click', function() {
+    el.modifySheet.classList.remove('show');
+    el.modifyBackdrop.classList.remove('show');
+  });
+
+  el.cancelConfirmYes.addEventListener('click', function() {
+    el.cancelConfirmOverlay.classList.remove('show');
+    showToast('Cancellation request submitted.');
+    cancelConfirmTrip = null;
+  });
+  el.cancelConfirmKeep.addEventListener('click', function() {
+    el.cancelConfirmOverlay.classList.remove('show');
+    cancelConfirmTrip = null;
+  });
+  el.cancelConfirmOverlay.addEventListener('click', function(e) {
+    if (e.target === el.cancelConfirmOverlay) el.cancelConfirmOverlay.classList.remove('show');
+  });
+
+  // ─── Init ──────────────────────────────────────────────────────────────
+  document.querySelectorAll('.progress-bar .step').forEach(function(step, i) {
+    step.classList.toggle('active', i < 1);
+  });
+  if (window.location.protocol === 'file:') {
+    el.micFileWarning.classList.add('show');
+  }
+})();
+  </script>
+</body>
+</html>
+<!--
+PROTOTYPE ASSUMPTIONS:
+- Voice NLU uses regex-based parsing for demo purposes.
+  Production would use Claude/GPT API for robust intent
+  extraction across any city or date format.
+- Listings are hardcoded mock data for 3 cities.
+  Production connects to Airbnb inventory API with real
+  availability and pricing.
+- Expense sync simulates Expensify integration.
+  Production uses Expensify OAuth + Reports API.
+- Calendar sync simulates Google Calendar.
+  Production uses Google Calendar API with OAuth.
+- Company card and $200 policy limit are hardcoded.
+  Production pulls from corporate admin dashboard
+  configured per company account.
+- Dates calculated relative to current system date.
+-->
